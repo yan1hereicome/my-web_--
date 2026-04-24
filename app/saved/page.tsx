@@ -1,14 +1,4 @@
-'use client';
-
-import dynamic from 'next/dynamic';
-
-const MapPlaceholder = dynamic(() => import('../../components/MapPlaceholder'), {
-  ssr: false,
-});
-
-export default function MapPage() {
-  return <MapPlaceholder />;
-}
+"use client";
 
 import { useState } from "react";
 import BottomNav from "@/components/BottomNav";
@@ -26,23 +16,7 @@ type MapPhoto = {
   faceCount?: number;
 };
 
-export const SAVED_KEY = "savedPhotos";
-
-// ── 유틸: 즐겨찾기 토글 (다른 페이지에서도 사용) ──────────────
-export function toggleSaved(photo: MapPhoto): boolean {
-  const raw  = localStorage.getItem(SAVED_KEY);
-  const list: MapPhoto[] = raw ? JSON.parse(raw) : [];
-  const exists = list.some((p) => p.id === photo.id);
-  const next   = exists ? list.filter((p) => p.id !== photo.id) : [photo, ...list];
-  localStorage.setItem(SAVED_KEY, JSON.stringify(next));
-  return !exists; // 저장됐으면 true, 제거됐으면 false
-}
-
-export function isSaved(id: string): boolean {
-  const raw = localStorage.getItem(SAVED_KEY);
-  if (!raw) return false;
-  return (JSON.parse(raw) as MapPhoto[]).some((p) => p.id === id);
-}
+import { SAVED_KEY } from "@/lib/savedUtils";
 
 // ── 사진 상세 모달 ─────────────────────────────────────────────
 function PhotoModal({

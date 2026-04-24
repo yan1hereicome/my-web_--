@@ -7,16 +7,6 @@ import {useEffect, useMemo, useState } from "react";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
 import BottomNav from "@/components/BottomNav";
 
-useEffect(() => {
-  delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
-
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-    iconUrl: "/leaflet/marker-icon.png",
-    shadowUrl: "/leaflet/marker-shadow.png",
-  });
-}, []);
-
 // ── 타입 ─────────────────────────────────────────────────────
 type MapPhoto = {
   id: string;
@@ -222,6 +212,15 @@ function InfoChip({ label, value }: { label: string; value: string }) {
 
 // ── 메인 페이지 ───────────────────────────────────────────────
 export default function MapPage() {
+  useEffect(() => {
+    delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: "/leaflet/marker-icon-2x.png",
+      iconUrl: "/leaflet/marker-icon.png",
+      shadowUrl: "/leaflet/marker-shadow.png",
+    });
+  }, []);
+
   const [photos] = useState<MapPhoto[]>(() => {
     if (typeof window === "undefined") return [];
     const raw = localStorage.getItem(STORAGE_KEY);

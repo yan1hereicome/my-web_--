@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import BottomNav from "@/components/BottomNav";
-import { toggleSaved } from "@/app/saved/page";
+import { toggleSaved } from "@/lib/savedUtils";
 
 type MapPhoto = {
   id: string;
