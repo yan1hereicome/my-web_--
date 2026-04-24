@@ -9,4 +9,3 @@ const ClientMapPage = dynamic(() => import("../../components/ClientMapPage"), {
 export default function MapPage() {
   return <ClientMapPage />;
 }
-

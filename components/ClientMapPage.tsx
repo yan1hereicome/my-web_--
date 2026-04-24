@@ -3,16 +3,19 @@
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import {useEffect, useMemo, useState } from "react";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
 import BottomNav from "@/components/BottomNav";
 
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-  iconUrl: "/leaflet/marker-icon.png",
-  shadowUrl: "/leaflet/marker-shadow.png",
-});
+useEffect(() => {
+  delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
+
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: "/leaflet/marker-icon-2x.png",
+    iconUrl: "/leaflet/marker-icon.png",
+    shadowUrl: "/leaflet/marker-shadow.png",
+  });
+}, []);
 
 // ── 타입 ─────────────────────────────────────────────────────
 type MapPhoto = {
