@@ -1,4 +1,14 @@
-"use client";
+'use client';
+
+import dynamic from 'next/dynamic';
+
+const MapPlaceholder = dynamic(() => import('../../components/MapPlaceholder'), {
+  ssr: false,
+});
+
+export default function MapPage() {
+  return <MapPlaceholder />;
+}
 
 import { useState } from "react";
 import BottomNav from "@/components/BottomNav";
