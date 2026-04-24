@@ -3,4 +3,10 @@ uvicorn
 python-multipart
 exifread
 opencv-python
+<<<<<<< HEAD
 geopy
+=======
+geopy
+numpy
+face-recognition
+>>>>>>> 85f8f6b (update project)

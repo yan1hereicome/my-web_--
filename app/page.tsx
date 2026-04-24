@@ -41,6 +41,10 @@ export type FacePhoto = {
   faceCount: number;
   uploadedAt: string;
   boxes?: Array<{ x: number; y: number; width: number; height: number }>; // 정규화 좌표 (0-1)
+<<<<<<< HEAD
+=======
+  descriptors?: number[][]; // 128-dim face recognition vectors (one per face, for person clustering)
+>>>>>>> 85f8f6b (update project)
   lat?: number;
   lng?: number;
   location?: string;
@@ -50,6 +54,11 @@ export type FacePhoto = {
 const MAP_STORAGE_KEY   = "photoMapPhotos";
 const FACES_STORAGE_KEY = "facesPhotos";   // 얼굴 자동 분류 앨범
 
+<<<<<<< HEAD
+=======
+const BACKEND_URL = "http://localhost:8000";
+
+>>>>>>> 85f8f6b (update project)
 // ── 유틸 함수 ─────────────────────────────────
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -111,6 +120,26 @@ async function forwardGeocode(query: string): Promise<{ lat: number; lng: number
   }
 }
 
+<<<<<<< HEAD
+=======
+async function analyzeWithBackend(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${BACKEND_URL}/analyze`, { method: "POST", body: form });
+  if (!res.ok) throw new Error(`Backend returned ${res.status}`);
+  return res.json() as Promise<{
+    captureDate: string | null;
+    captureTime: string | null;
+    latitude:    number | null;
+    longitude:   number | null;
+    location:    string | null;
+    faceCount:   number;
+    faceBoxes:   Array<{ x_norm: number; y_norm: number; w_norm: number; h_norm: number }>;
+    descriptors: number[][];
+  }>;
+}
+
+>>>>>>> 85f8f6b (update project)
 // ── 메인 컴포넌트 ──────────────────────────────
 export default function HomePage() {
   const [selectedFile, setSelectedFile]   = useState<File | null>(null);
@@ -123,16 +152,46 @@ export default function HomePage() {
   const [draftFileName,   setDraftFileName]   = useState("");
   const [isEditingName,   setIsEditingName]   = useState(false);
   const [isModelLoaded,   setIsModelLoaded]   = useState(false);
+<<<<<<< HEAD
+=======
+  const [modelType,       setModelType]       = useState<"ssd" | "tiny">("tiny");
+  const [backendStatus,   setBackendStatus]   = useState<"checking" | "online" | "offline">("checking");
+>>>>>>> 85f8f6b (update project)
   const [locationQuery,   setLocationQuery]   = useState("");
   const [manualCoords,    setManualCoords]    = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [locationStatus,  setLocationStatus]  = useState<"idle"|"searching"|"done"|"error">("idle");
   const [lastFacePhotoId, setLastFacePhotoId] = useState<string | null>(null);
 
+<<<<<<< HEAD
   // 모델 로드 (앱 시작 시 한 번)
   useEffect(() => {
     faceapi.nets.tinyFaceDetector.loadFromUri("/models")
       .then(() => setIsModelLoaded(true))
       .catch((err) => console.error("AI 모델 로드 실패", err));
+=======
+  // 모델 로드 (앱 시작 시 한 번) — SSD 우선, 없으면 TinyFaceDetector로 폴백
+  useEffect(() => {
+    const MODEL_URL = "/models";
+    Promise.all([
+      faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+    ]).then(() => {
+      setModelType("ssd");
+      setIsModelLoaded(true);
+    }).catch(() => {
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL)
+        .then(() => { setModelType("tiny"); setIsModelLoaded(true); })
+        .catch((err) => console.error("AI 모델 로드 실패", err));
+    });
+  }, []);
+
+  // 백엔드 서버 온라인 여부 확인 (앱 시작 시 한 번)
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/health`)
+      .then((r) => setBackendStatus(r.ok ? "online" : "offline"))
+      .catch(() => setBackendStatus("offline"));
+>>>>>>> 85f8f6b (update project)
   }, []);
 
   // 파일 선택 → 분석
@@ -154,6 +213,7 @@ export default function HomePage() {
     setLoading(true);
 
     try {
+<<<<<<< HEAD
       // ① EXIF 분석
       const exifData: any = await exifr.parse(file).catch(() => null);
       const gpsData:  any = await exifr.gps(file).catch(() => null);
@@ -196,6 +256,89 @@ export default function HomePage() {
 
       const category = detectedFaceCount > 0 ? "인물 사진" : "일반 사진";
 
+=======
+      let lat: number | null = null;
+      let lng: number | null = null;
+      let captureDate = "Not available";
+      let captureTime = "Not available";
+      let location    = "No GPS data";
+      let detectedFaceCount = 0;
+      let faceBoxes: Array<{ x: number; y: number; width: number; height: number }> = [];
+      let faceDescriptors: number[][] = [];
+
+      if (backendStatus === "online") {
+        // ── 백엔드 API 경로 ──────────────────────────────────────
+        // 파이썬 서버가 EXIF + SSD 감지 + dlib 특징 벡터를 한 번에 처리
+        const data = await analyzeWithBackend(file);
+        lat           = data.latitude   ?? null;
+        lng           = data.longitude  ?? null;
+        captureDate   = data.captureDate ?? "Not available";
+        captureTime   = data.captureTime ?? "Not available";
+        location      = data.location
+          ?? (lat !== null ? `${lat.toFixed(6)}, ${lng?.toFixed(6)}` : "No GPS data");
+        detectedFaceCount = data.faceCount ?? 0;
+        faceBoxes     = (data.faceBoxes ?? []).map((b) => ({
+          x: b.x_norm, y: b.y_norm, width: b.w_norm, height: b.h_norm,
+        }));
+        faceDescriptors = data.descriptors ?? [];
+      } else {
+        // ── 브라우저 경로 (백엔드 오프라인일 때 폴백) ────────────
+        // ① EXIF 분석
+        const exifData: any = await exifr.parse(file).catch(() => null);
+        const gpsData:  any = await exifr.gps(file).catch(() => null);
+        lat = typeof gpsData?.latitude  === "number" ? gpsData.latitude  : null;
+        lng = typeof gpsData?.longitude === "number" ? gpsData.longitude : null;
+        const takenAt = exifData?.DateTimeOriginal || exifData?.CreateDate || null;
+        if (takenAt) {
+          const d = new Date(takenAt);
+          captureDate = d.toLocaleDateString();
+          captureTime = d.toLocaleTimeString();
+        }
+        if (lat !== null && lng !== null) {
+          const addr = await reverseGeocode(lat, lng);
+          location = addr || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        }
+
+        // ② 얼굴 감지 (SSD + 크기 휴리스틱 필터링 + 128-dim 특징 벡터)
+        if (isModelLoaded) {
+          const imgEl = await faceapi.fetchImage(URL.createObjectURL(file));
+          const AREA_THRESHOLD = 0.12;
+          if (modelType === "ssd") {
+            const all = await faceapi
+              .detectAllFaces(imgEl, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+              .withFaceLandmarks()
+              .withFaceDescriptors();
+            const areas = all.map((d) => d.detection.box.width * d.detection.box.height);
+            const maxArea = areas.length > 0 ? Math.max(...areas) : 0;
+            const filtered = maxArea > 0 ? all.filter((_, i) => areas[i] / maxArea >= AREA_THRESHOLD) : all;
+            detectedFaceCount = filtered.length;
+            faceBoxes = filtered.map((d) => ({
+              x:      d.detection.box.x      / imgEl.naturalWidth,
+              y:      d.detection.box.y      / imgEl.naturalHeight,
+              width:  d.detection.box.width  / imgEl.naturalWidth,
+              height: d.detection.box.height / imgEl.naturalHeight,
+            }));
+            faceDescriptors = filtered.map((d) => Array.from(d.descriptor));
+          } else {
+            const detections = await faceapi.detectAllFaces(
+              imgEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.3 })
+            );
+            const areas = detections.map((d) => d.box.width * d.box.height);
+            const maxArea = areas.length > 0 ? Math.max(...areas) : 0;
+            const filtered = maxArea > 0 ? detections.filter((_, i) => areas[i] / maxArea >= AREA_THRESHOLD) : detections;
+            detectedFaceCount = filtered.length;
+            faceBoxes = filtered.map((d) => ({
+              x:      d.box.x      / imgEl.naturalWidth,
+              y:      d.box.y      / imgEl.naturalHeight,
+              width:  d.box.width  / imgEl.naturalWidth,
+              height: d.box.height / imgEl.naturalHeight,
+            }));
+          }
+        }
+      }
+
+      const category = detectedFaceCount > 0 ? "인물 사진" : "일반 사진";
+>>>>>>> 85f8f6b (update project)
       setPhotoInfo({
         fileName: file.name,
         fileType: file.type || "unknown",
@@ -215,12 +358,22 @@ export default function HomePage() {
         const thumbnail = await createThumbnailDataUrl(file, 420, 0.75);
         const facePhotoId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
         const facePhoto: FacePhoto = {
+<<<<<<< HEAD
           id:         facePhotoId,
           fileName:   file.name,
           imageUrl:   thumbnail,
           faceCount:  detectedFaceCount,
           uploadedAt: new Date().toLocaleString(),
           boxes:      faceBoxes,
+=======
+          id:          facePhotoId,
+          fileName:    file.name,
+          imageUrl:    thumbnail,
+          faceCount:   detectedFaceCount,
+          uploadedAt:  new Date().toLocaleString(),
+          boxes:       faceBoxes,
+          ...(faceDescriptors.length > 0 && { descriptors: faceDescriptors }),
+>>>>>>> 85f8f6b (update project)
           ...(lat !== null && lng !== null && { lat, lng }),
           ...(lat !== null && location !== "No GPS data" && { location }),
         };
@@ -325,7 +478,24 @@ export default function HomePage() {
 
           {/* ── 업로드 섹션 ─────────────────────── */}
           <section style={{ background: "white", borderRadius: "20px", padding: "24px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+<<<<<<< HEAD
             <h2 style={{ fontSize: "22px", fontWeight: 700, marginBottom: "16px" }}>Upload Photo</h2>
+=======
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <h2 style={{ fontSize: "22px", fontWeight: 700, margin: 0 }}>Upload Photo</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{
+                  width: "8px", height: "8px", borderRadius: "50%", display: "inline-block", flexShrink: 0,
+                  background: backendStatus === "online" ? "#16a34a" : backendStatus === "offline" ? "#94a3b8" : "#f59e0b",
+                }} />
+                <span style={{ fontSize: "12px", color: "#64748b" }}>
+                  {backendStatus === "online"   ? "API 연결됨"
+                   : backendStatus === "offline" ? "브라우저 모드"
+                   : "확인 중..."}
+                </span>
+              </div>
+            </div>
+>>>>>>> 85f8f6b (update project)
 
             <label style={{
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
@@ -340,6 +510,19 @@ export default function HomePage() {
                   AI 엔진 준비 중...
                 </span>
               )}
+<<<<<<< HEAD
+=======
+              {isModelLoaded && modelType === "ssd" && (
+                <span style={{ marginTop: "6px", fontSize: "11px", color: "#16a34a" }}>
+                  ✓ 고급 감지 모드 (SSD + 얼굴 인식)
+                </span>
+              )}
+              {isModelLoaded && modelType === "tiny" && (
+                <span style={{ marginTop: "6px", fontSize: "11px", color: "#f59e0b" }}>
+                  ⚠️ 기본 감지 모드 — bash _scripts/download-models.sh 실행 시 업그레이드
+                </span>
+              )}
+>>>>>>> 85f8f6b (update project)
             </label>
 
             {loading && (

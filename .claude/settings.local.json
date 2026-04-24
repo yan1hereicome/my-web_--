@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod +x /Users/toenaing/Downloads/my-web_---main/_scripts/download-models.sh)"
+    ]
+  }
+}

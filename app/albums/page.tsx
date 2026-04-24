@@ -1,8 +1,13 @@
 "use client";
 
+<<<<<<< HEAD
 import { useMemo, useState } from "react";
 import BottomNav from "@/components/BottomNav";
 import { toggleSaved } from "@/lib/savedUtils";
+=======
+import { useEffect, useMemo, useState } from "react";
+import BottomNav from "@/components/BottomNav";
+>>>>>>> 85f8f6b (update project)
 
 type MapPhoto = {
   id: string;
@@ -17,6 +22,7 @@ type MapPhoto = {
   faceCount?: number;
 };
 
+<<<<<<< HEAD
 type Filter = "전체" | "인물 사진" | "일반 사진";
 const FILTERS: Filter[] = ["전체", "인물 사진", "일반 사진"];
 const STORAGE_KEY = "photoMapPhotos";
@@ -179,15 +185,40 @@ export default function AlbumsPage() {
     const map = new Map<string, MapPhoto[]>();
     for (const photo of filtered) {
       const key = (photo.location || "위치 정보 없음").split(",")[0].trim();
+=======
+const STORAGE_KEY = "photoMapPhotos";
+
+export default function AlbumsPage() {
+  const [photos, setPhotos] = useState<MapPhoto[]>([]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) setPhotos(JSON.parse(raw));
+    } catch {
+      // ignore corrupted localStorage data
+    }
+  }, []);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, MapPhoto[]>();
+    for (const photo of photos) {
+      const key = (photo.location || "Unknown location").split(",")[0];
+>>>>>>> 85f8f6b (update project)
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(photo);
     }
     return Array.from(map.entries());
+<<<<<<< HEAD
   }, [filtered]);
+=======
+  }, [photos]);
+>>>>>>> 85f8f6b (update project)
 
   return (
     <main style={{ minHeight: "100vh", background: "#f8fafc", padding: "24px", paddingBottom: "110px" }}>
       <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
+<<<<<<< HEAD
 
         {/* 헤더 */}
         <h1 style={{ fontSize: "48px", fontWeight: 800, marginBottom: "4px" }}>Albums</h1>
@@ -238,12 +269,23 @@ export default function AlbumsPage() {
             <p style={{ color: "#94a3b8", fontSize: "14px", margin: 0 }}>
               홈에서 사진을 업로드하고 지도에 저장해보세요.
             </p>
+=======
+        <h1 style={{ fontSize: "48px", fontWeight: 800 }}>Albums</h1>
+        <p style={{ color: "#475569", marginBottom: "24px" }}>
+          Photos grouped by location.
+        </p>
+
+        {grouped.length === 0 ? (
+          <div style={{ background: "white", borderRadius: "18px", padding: "20px" }}>
+            No photos saved yet.
+>>>>>>> 85f8f6b (update project)
           </div>
         ) : (
           grouped.map(([groupName, items]) => (
             <section
               key={groupName}
               style={{
+<<<<<<< HEAD
                 background: "white", borderRadius: "18px", padding: "20px",
                 marginBottom: "20px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
               }}
@@ -268,11 +310,34 @@ export default function AlbumsPage() {
                     onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.02)")}
                     onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
                   >
+=======
+                background: "white",
+                borderRadius: "18px",
+                padding: "20px",
+                marginBottom: "20px",
+                boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+              }}
+            >
+              <h2 style={{ marginTop: 0, fontSize: "24px", fontWeight: 800 }}>
+                {groupName} ({items.length})
+              </h2>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                  gap: "16px",
+                }}
+              >
+                {items.map((photo) => (
+                  <div key={photo.id}>
+>>>>>>> 85f8f6b (update project)
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={photo.imageUrl}
                       alt={photo.fileName}
                       style={{
+<<<<<<< HEAD
                         width: "100%", height: "140px",
                         objectFit: "contain", display: "block", background: "#f1f5f9",
                       }}
@@ -330,6 +395,15 @@ export default function AlbumsPage() {
                         </button>
                       </div>
                     </div>
+=======
+                        width: "100%",
+                        height: "180px",
+                        objectFit: "cover",
+                        borderRadius: "12px",
+                      }}
+                    />
+                    <p style={{ margin: "8px 0 0 0", fontWeight: 700 }}>{photo.fileName}</p>
+>>>>>>> 85f8f6b (update project)
                   </div>
                 ))}
               </div>
@@ -338,6 +412,7 @@ export default function AlbumsPage() {
         )}
       </div>
 
+<<<<<<< HEAD
       {selectedPhoto && (
         <PhotoModal
           photo={selectedPhoto}
@@ -351,3 +426,9 @@ export default function AlbumsPage() {
     </main>
   );
 }
+=======
+      <BottomNav />
+    </main>
+  );
+}
+>>>>>>> 85f8f6b (update project)

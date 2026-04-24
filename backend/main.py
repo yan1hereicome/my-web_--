@@ -7,6 +7,16 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+<<<<<<< HEAD
+=======
+try:
+    from utils.face_utils import detect_faces as ssd_detect_faces
+    from utils.exif_utils import extract_exif_info
+    _UTILS_OK = True
+except Exception:
+    _UTILS_OK = False
+
+>>>>>>> 85f8f6b (update project)
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 FACE_DIR = UPLOAD_DIR / "faces"
@@ -75,6 +85,56 @@ def root():
     return {"message": "FastAPI face detection server running"}
 
 
+<<<<<<< HEAD
+=======
+@app.get("/health")
+def health():
+    """Frontend polls this to decide whether to use API mode or browser mode."""
+    return {"status": "ok", "utils_available": _UTILS_OK}
+
+
+@app.post("/analyze")
+async def analyze_photo(file: UploadFile = File(...)):
+    """
+    Combined endpoint used by the frontend:
+      1. Save uploaded photo
+      2. Extract EXIF  (date, time, GPS → reverse-geocoded location)
+      3. Detect faces  (SSD MobileNetV1 + size filter + dlib 128-dim descriptors)
+      4. Return everything in one JSON response
+    """
+    photo_id = str(uuid.uuid4())
+    ext = Path(file.filename or "upload").suffix or ".jpg"
+    saved_path = UPLOAD_DIR / f"{photo_id}{ext}"
+
+    with saved_path.open("wb") as buf:
+        shutil.copyfileobj(file.file, buf)
+
+    if not _UTILS_OK:
+        return {
+            "photoId": photo_id,
+            "error": "utils not ready — run: pip install -r requirements.txt",
+            "captureDate": None, "captureTime": None,
+            "latitude": None,   "longitude": None, "location": None,
+            "faceCount": 0,     "faceBoxes": [],   "descriptors": [],
+        }
+
+    exif  = extract_exif_info(str(saved_path))
+    faces = ssd_detect_faces(str(saved_path))
+
+    return {
+        "photoId":     photo_id,
+        "captureDate": exif.get("captureDate"),
+        "captureTime": exif.get("captureTime"),
+        "latitude":    exif.get("latitude"),
+        "longitude":   exif.get("longitude"),
+        "location":    exif.get("location"),
+        "faceCount":   faces["facesDetected"],
+        "faceBoxes":   faces["faceBoxes"],
+        "descriptors": faces["descriptors"],
+    }
+
+
+>>>>>>> 85f8f6b (update project)
 @app.post("/detect-faces")
 async def detect_faces(file: UploadFile = File(...)):
     photo_id = str(uuid.uuid4())
