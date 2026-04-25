@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(chmod +x /Users/toenaing/Downloads/my-web_---main/_scripts/download-models.sh)"
+      "Bash(chmod +x /Users/toenaing/Downloads/my-web_---main/_scripts/download-models.sh)",
+      "Bash(python -c \"import utils.face_utils\")",
+      "Bash(python -c \"from utils.exif_utils import extract_exif_info\")",
+      "Bash(pip install *)",
+      "Bash(python -c \"from utils.exif_utils import extract_exif_info; from utils.face_utils import detect_faces; print\\('All imports OK'\\)\")"
     ]
   }
 }

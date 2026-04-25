@@ -89,24 +89,25 @@ import numpy as np
 # (dlib requires cmake: brew install cmake  /  apt-get install cmake)
 try:
     import face_recognition
+
     _DLIB_AVAILABLE = True
 except ImportError:
     _DLIB_AVAILABLE = False
 
 
 # ── Model paths ───────────────────────────────────────────────
-_MODEL_DIR   = Path(__file__).resolve().parent.parent / "models"
-_PROTOTXT    = str(_MODEL_DIR / "deploy.prototxt")
-_CAFFEMODEL  = str(_MODEL_DIR / "res10_300x300_ssd_iter_140000.caffemodel")
+_MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
+_PROTOTXT = str(_MODEL_DIR / "deploy.prototxt")
+_CAFFEMODEL = str(_MODEL_DIR / "res10_300x300_ssd_iter_140000.caffemodel")
 
 # Load the SSD network once at import time (loading is expensive).
 _ssd_net = cv2.dnn.readNetFromCaffe(_PROTOTXT, _CAFFEMODEL)
 
 
 # ── Tuneable constants ────────────────────────────────────────
-CONFIDENCE_THRESHOLD  = 0.50   # SSD detections below this score are ignored
-AREA_RATIO_THRESHOLD  = 0.12   # faces < 12 % of the largest face area → background
-MATCH_THRESHOLD       = 0.60   # dlib Euclidean distance: below = same person
+CONFIDENCE_THRESHOLD = 0.50  # SSD detections below this score are ignored
+AREA_RATIO_THRESHOLD = 0.12  # faces < 12 % of the largest face area → background
+MATCH_THRESHOLD = 0.60  # dlib Euclidean distance: below = same person
 
 
 # ── Stage ①: SSD face detection ──────────────────────────────
@@ -127,7 +128,7 @@ def _run_ssd(image: np.ndarray) -> list[tuple[int, int, int, int, float]]:
         mean=(104.0, 177.0, 123.0),  # BGR mean used during Caffe training
     )
     _ssd_net.setInput(blob)
-    output = _ssd_net.forward()   # shape: (1, 1, N, 7)
+    output = _ssd_net.forward()  # shape: (1, 1, N, 7)
 
     boxes: list[tuple[int, int, int, int, float]] = []
     for i in range(output.shape[2]):
@@ -163,7 +164,7 @@ def _apply_size_filter(
     """
     if not boxes:
         return boxes
-    areas    = [bw * bh for (_, _, bw, bh, _) in boxes]
+    areas = [bw * bh for (_, _, bw, bh, _) in boxes]
     max_area = max(areas)
     return [
         box
@@ -175,7 +176,10 @@ def _apply_size_filter(
 # ── Stage ②: dlib 128-dim descriptor ─────────────────────────
 def _compute_descriptor(
     rgb_image: np.ndarray,
-    x: int, y: int, bw: int, bh: int,
+    x: int,
+    y: int,
+    bw: int,
+    bh: int,
 ) -> list[float]:
     """
     Ask dlib's ResNet-34 for the 128-dim encoding of the face at (x, y, bw, bh).
@@ -187,13 +191,13 @@ def _compute_descriptor(
         return []
 
     # Convert OpenCV box → face_recognition location tuple
-    location = (y, x + bw, y + bh, x)   # (top, right, bottom, left)
+    location = (y, x + bw, y + bh, x)  # (top, right, bottom, left)
     encodings = face_recognition.face_encodings(
         rgb_image,
         known_face_locations=[location],
-        num_jitters=1,       # 1 = fast; increase to 10 for higher accuracy
-        model="small",       # "small" = 5-point landmarks (fast)
-                             # "large" = 68-point landmarks (more accurate)
+        num_jitters=1,  # 1 = fast; increase to 10 for higher accuracy
+        model="small",  # "small" = 5-point landmarks (fast)
+        # "large" = 68-point landmarks (more accurate)
     )
     return encodings[0].tolist() if encodings else []
 
@@ -249,30 +253,32 @@ def detect_faces(
     # ② Compute dlib descriptors on the filtered set
     rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-    face_boxes:  list[dict] = []
+    face_boxes: list[dict] = []
     descriptors: list[list[float]] = []
 
-    for (x, y, bw, bh, conf) in raw_boxes:
+    for x, y, bw, bh, conf in raw_boxes:
         descriptor = _compute_descriptor(rgb, x, y, bw, bh)
-        face_boxes.append({
-            "x": x,
-            "y": y,
-            "w": bw,
-            "h": bh,
-            "confidence": round(conf, 4),
-            # Normalised coordinates are scale-independent and match the
-            # frontend's stored format.
-            "x_norm": round(x  / img_w, 6),
-            "y_norm": round(y  / img_h, 6),
-            "w_norm": round(bw / img_w, 6),
-            "h_norm": round(bh / img_h, 6),
-        })
+        face_boxes.append(
+            {
+                "x": x,
+                "y": y,
+                "w": bw,
+                "h": bh,
+                "confidence": round(conf, 4),
+                # Normalised coordinates are scale-independent and match the
+                # frontend's stored format.
+                "x_norm": round(x / img_w, 6),
+                "y_norm": round(y / img_h, 6),
+                "w_norm": round(bw / img_w, 6),
+                "h_norm": round(bh / img_h, 6),
+            }
+        )
         descriptors.append(descriptor)
 
     return {
         "facesDetected": len(face_boxes),
-        "faceBoxes":     face_boxes,
-        "descriptors":   descriptors,
+        "faceBoxes": face_boxes,
+        "descriptors": descriptors,
     }
 
 
@@ -301,9 +307,9 @@ def match_face(
     if not descriptor or not known_descriptors:
         return None
 
-    probe     = np.array(descriptor, dtype=np.float64)
-    gallery   = np.array(known_descriptors, dtype=np.float64)  # (N, 128)
-    distances = np.linalg.norm(gallery - probe, axis=1)         # (N,)
+    probe = np.array(descriptor, dtype=np.float64)
+    gallery = np.array(known_descriptors, dtype=np.float64)  # (N, 128)
+    distances = np.linalg.norm(gallery - probe, axis=1)  # (N,)
 
     best_idx = int(np.argmin(distances))
     return best_idx if distances[best_idx] < threshold else None
@@ -341,9 +347,9 @@ def cluster_faces(
             cluster_ids.append(0)
             continue
 
-        gallery   = np.array(centroids, dtype=np.float64)
+        gallery = np.array(centroids, dtype=np.float64)
         distances = np.linalg.norm(gallery - probe, axis=1)
-        best_idx  = int(np.argmin(distances))
+        best_idx = int(np.argmin(distances))
 
         if distances[best_idx] < threshold:
             # Update centroid as running average
