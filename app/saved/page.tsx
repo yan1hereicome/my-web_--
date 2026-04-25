@@ -1,8 +1,8 @@
 "use client";
 
-<<<<<<< HEAD
 import { useState } from "react";
 import BottomNav from "@/components/BottomNav";
+import { SAVED_KEY } from "@/lib/savedUtils";
 
 type MapPhoto = {
   id: string;
@@ -17,9 +17,6 @@ type MapPhoto = {
   faceCount?: number;
 };
 
-import { SAVED_KEY } from "@/lib/savedUtils";
-
-// ── 사진 상세 모달 ─────────────────────────────────────────────
 function PhotoModal({
   photo,
   onClose,
@@ -110,7 +107,6 @@ function InfoChip({ label, value }: { label: string; value: string }) {
   );
 }
 
-// ── 메인 페이지 ───────────────────────────────────────────────
 export default function SavedPage() {
   const [saved, setSaved] = useState<MapPhoto[]>(() => {
     if (typeof window === "undefined") return [];
@@ -137,7 +133,6 @@ export default function SavedPage() {
     <main style={{ minHeight: "100vh", background: "#f8fafc", padding: "24px", paddingBottom: "110px" }}>
       <div style={{ maxWidth: "960px", margin: "0 auto" }}>
 
-        {/* 헤더 */}
         <h1 style={{ fontSize: "28px", fontWeight: 800, marginBottom: "4px" }}>⭐ Saved</h1>
         <p style={{ color: "#64748b", marginBottom: "24px", fontSize: "14px" }}>
           Albums에서 ⭐ 버튼을 눌러 저장한 사진들이 여기에 모입니다.
@@ -230,30 +225,3 @@ export default function SavedPage() {
     </main>
   );
 }
-=======
-import BottomNav from "@/components/BottomNav";
-
-export default function SavedPage() {
-  return (
-    <main style={{ minHeight: "100vh", background: "#f8fafc", padding: "24px", paddingBottom: "110px" }}>
-      <div style={{ maxWidth: "960px", margin: "0 auto" }}>
-        <div
-          style={{
-            background: "white",
-            borderRadius: "18px",
-            padding: "24px",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-          }}
-        >
-          <h1 style={{ fontSize: "48px", fontWeight: 800, marginTop: 0 }}>Saved</h1>
-          <p style={{ color: "#475569", fontSize: "18px", lineHeight: 1.7 }}>
-            This page can be used later for favorites, notes, or bookmarked photos.
-          </p>
-        </div>
-      </div>
-
-      <BottomNav />
-    </main>
-  );
-}
->>>>>>> 85f8f6b (update project)

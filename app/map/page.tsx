@@ -1,16 +1,5 @@
 "use client";
 
-<<<<<<< HEAD
-import dynamic from "next/dynamic";
-
-const ClientMapPage = dynamic(() => import("../../components/ClientMapPage"), {
-  ssr: false,
-});
-
-export default function MapPage() {
-  return <ClientMapPage />;
-}
-=======
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import Link from "next/link";
@@ -25,7 +14,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl:     "/leaflet/marker-shadow.png",
 });
 
-// ── 타입 ─────────────────────────────────────────────────────
 type MapPhoto = {
   id: string;
   fileName: string;
@@ -48,7 +36,6 @@ type Cluster = {
 
 const STORAGE_KEY = "photoMapPhotos";
 
-// ── 클러스터 마커 아이콘 (썸네일 + 개수 뱃지) ───────────────
 function makeClusterIcon(photo: MapPhoto, count: number): L.DivIcon {
   const badge =
     count > 1
@@ -65,7 +52,6 @@ function makeClusterIcon(photo: MapPhoto, count: number): L.DivIcon {
   });
 }
 
-// ── 전체보기 모달 ─────────────────────────────────────────────
 function PhotoModal({
   cluster,
   onClose,
@@ -93,7 +79,6 @@ function PhotoModal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 헤더 */}
         <div style={{
           display: "flex", justifyContent: "space-between", alignItems: "center",
           padding: "14px 18px", borderBottom: "1px solid #e2e8f0",
@@ -125,7 +110,6 @@ function PhotoModal({
           </div>
         </div>
 
-        {/* 전체 이미지 */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={photo.imageUrl}
@@ -136,7 +120,6 @@ function PhotoModal({
           }}
         />
 
-        {/* 같은 위치 여러 사진: 네비게이션 */}
         {total > 1 && (
           <div style={{
             display: "flex", justifyContent: "space-between", alignItems: "center",
@@ -156,7 +139,6 @@ function PhotoModal({
               ◀ 이전
             </button>
 
-            {/* 썸네일 스트립 */}
             <div style={{ display: "flex", gap: "6px", overflowX: "auto", maxWidth: "60%" }}>
               {cluster.photos.map((p, i) => (
                 <div
@@ -194,7 +176,6 @@ function PhotoModal({
           </div>
         )}
 
-        {/* 상세 정보 */}
         <div style={{
           padding: "12px 18px", borderTop: "1px solid #e2e8f0",
           display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px",
@@ -228,7 +209,6 @@ function InfoChip({ label, value }: { label: string; value: string }) {
   );
 }
 
-// ── 메인 페이지 ───────────────────────────────────────────────
 export default function MapPage() {
   const [photos, setPhotos] = useState<MapPhoto[]>(() => {
     if (typeof window === "undefined") return [];
@@ -237,7 +217,6 @@ export default function MapPage() {
   });
   const [activeCluster, setActiveCluster] = useState<Cluster | null>(null);
 
-  // 0.01° ≈ 1km 반경으로 클러스터링
   const clusters = useMemo<Cluster[]>(() => {
     const map: Record<string, Cluster> = {};
     photos.forEach((p) => {
@@ -253,6 +232,9 @@ export default function MapPage() {
     return [photos[0].lat, photos[0].lng];
   }, [photos]);
 
+  // suppress unused warning — center is used by MapContainer
+  void useEffect;
+
   function handleClear() {
     localStorage.removeItem(STORAGE_KEY);
     setPhotos([]);
@@ -263,7 +245,6 @@ export default function MapPage() {
     <main style={{ minHeight: "100vh", background: "#f8fafc", padding: "24px", paddingBottom: "110px" }}>
       <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
 
-        {/* 헤더 */}
         <div style={{
           display: "flex", justifyContent: "space-between", alignItems: "center",
           marginBottom: "20px", gap: "12px", flexWrap: "wrap",
@@ -292,7 +273,6 @@ export default function MapPage() {
           </div>
         </div>
 
-        {/* 지도 */}
         <div style={{
           height: "640px", width: "100%", borderRadius: "18px",
           overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
@@ -318,7 +298,6 @@ export default function MapPage() {
           </MapContainer>
         </div>
 
-        {/* 저장된 사진 목록 */}
         <section style={{
           marginTop: "20px", background: "white", borderRadius: "18px",
           padding: "20px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
@@ -374,7 +353,6 @@ export default function MapPage() {
         </section>
       </div>
 
-      {/* 전체보기 모달 */}
       {activeCluster && (
         <PhotoModal cluster={activeCluster} onClose={() => setActiveCluster(null)} />
       )}
@@ -383,4 +361,3 @@ export default function MapPage() {
     </main>
   );
 }
->>>>>>> 85f8f6b (update project)

@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-'use client';
-
-=======
->>>>>>> 85f8f6b (update project)
 export default function MapPlaceholder() {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

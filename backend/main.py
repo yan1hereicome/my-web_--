@@ -7,8 +7,6 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-<<<<<<< HEAD
-=======
 try:
     from utils.face_utils import detect_faces as ssd_detect_faces
     from utils.exif_utils import extract_exif_info
@@ -16,7 +14,7 @@ try:
 except Exception:
     _UTILS_OK = False
 
->>>>>>> 85f8f6b (update project)
+
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 FACE_DIR = UPLOAD_DIR / "faces"
@@ -85,8 +83,6 @@ def root():
     return {"message": "FastAPI face detection server running"}
 
 
-<<<<<<< HEAD
-=======
 @app.get("/health")
 def health():
     """Frontend polls this to decide whether to use API mode or browser mode."""
@@ -134,7 +130,7 @@ async def analyze_photo(file: UploadFile = File(...)):
     }
 
 
->>>>>>> 85f8f6b (update project)
+
 @app.post("/detect-faces")
 async def detect_faces(file: UploadFile = File(...)):
     photo_id = str(uuid.uuid4())
