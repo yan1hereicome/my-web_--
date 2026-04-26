@@ -5,24 +5,7 @@ face_utils.py
 Two-stage face analysis pipeline:
 
   Stage ①  Detection  — OpenCV DNN + SSD MobileNetV1 (Caffe model)
-           Unlike the old Haar Cascade, SSD:
-             • Detects non-frontal and partially-occluded faces
-             • Returns a confidence score (0.0 – 1.0) per detection
-             • Works well under varied lighting conditions
-
   Stage ②  Recognition — dlib ResNet-34  (via `face_recognition` library)
-           Encodes each detected face as a 128-dimensional float vector.
-           The model was trained so that:
-             • Same person  →  Euclidean distance < 0.6
-             • Different    →  Euclidean distance ≥ 0.6
-           These vectors let us cluster "the same person" across many photos
-           without ever needing labelled training data for new faces.
-
-  Size heuristic filter  (professor's suggestion #1)
-           After detection, faces whose pixel area is less than
-           AREA_RATIO_THRESHOLD × (largest detected face area) are dropped.
-           This removes background bystanders whose faces appear small in
-           the photo compared with the main subject(s).
 
   Usage:
       result = detect_faces("photo.jpg")
@@ -41,6 +24,7 @@ from typing import Optional
 
 import cv2
 import numpy as np
+from sklearn.cluster import DBSCAN
 
 # face_recognition wraps dlib's ResNet-34 face recognition model.
 # Install: pip install face-recognition
@@ -73,17 +57,16 @@ def _run_ssd(image: np.ndarray) -> list[tuple[int, int, int, int, float]]:
     """
     Run SSD MobileNetV1 on an image.
 
-    Returns a list of (x, y, w, h, confidence) tuples for every detection
-    that exceeds CONFIDENCE_THRESHOLD, clamped to the image boundaries.
+    Returns ALL detections (no confidence filter here — filtering is done once
+    in detect_faces() so the caller's threshold is the only gate applied).
     """
     h, w = image.shape[:2]
 
-    # SSD expects a 300×300 blob normalised with the training-set BGR mean.
     blob = cv2.dnn.blobFromImage(
         cv2.resize(image, (300, 300)),
         scalefactor=1.0,
         size=(300, 300),
-        mean=(104.0, 177.0, 123.0),  # BGR mean used during Caffe training
+        mean=(104.0, 177.0, 123.0),
     )
     _ssd_net.setInput(blob)
     output = _ssd_net.forward()  # shape: (1, 1, N, 7)
@@ -91,16 +74,12 @@ def _run_ssd(image: np.ndarray) -> list[tuple[int, int, int, int, float]]:
     boxes: list[tuple[int, int, int, int, float]] = []
     for i in range(output.shape[2]):
         confidence = float(output[0, 0, i, 2])
-        if confidence < CONFIDENCE_THRESHOLD:
-            continue
 
-        # The SSD head outputs normalised [0, 1] coordinates.
         x1 = int(output[0, 0, i, 3] * w)
         y1 = int(output[0, 0, i, 4] * h)
         x2 = int(output[0, 0, i, 5] * w)
         y2 = int(output[0, 0, i, 6] * h)
 
-        # Clamp to image bounds and skip degenerate boxes.
         x1, y1 = max(0, x1), max(0, y1)
         x2, y2 = min(w, x2), min(h, y2)
         bw, bh = x2 - x1, y2 - y1
@@ -131,6 +110,14 @@ def _apply_size_filter(
     ]
 
 
+# ── Image quality gate ───────────────────────────────────────
+def _image_quality_ok(image: np.ndarray, blur_threshold: float = 50.0) -> bool:
+    """Return False if image is likely too blurry to produce good descriptors."""
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
+    return blur_score > blur_threshold
+
+
 # ── Stage ②: dlib 128-dim descriptor ─────────────────────────
 def _compute_descriptor(
     rgb_image: np.ndarray,
@@ -153,9 +140,8 @@ def _compute_descriptor(
     encodings = face_recognition.face_encodings(
         rgb_image,
         known_face_locations=[location],
-        num_jitters=1,  # 1 = fast; increase to 10 for higher accuracy
-        model="small",  # "small" = 5-point landmarks (fast)
-        # "large" = 68-point landmarks (more accurate)
+        num_jitters=3,   # 3 jitters: better accuracy without too much overhead
+        model="large",   # 68-point landmarks: noticeably better recognition
     )
     return encodings[0].tolist() if encodings else []
 
@@ -197,12 +183,13 @@ def detect_faces(
     if image is None:
         return {"facesDetected": 0, "faceBoxes": [], "descriptors": []}
 
+    if not _image_quality_ok(image):
+        return {"facesDetected": 0, "faceBoxes": [], "descriptors": [], "quality": "too_blurry"}
+
     img_h, img_w = image.shape[:2]
 
-    # ① Detect
+    # ① Detect — confidence filter applied once here (not inside _run_ssd)
     raw_boxes = _run_ssd(image)
-
-    # Apply tuneable confidence threshold (caller may override the default)
     raw_boxes = [b for b in raw_boxes if b[4] >= confidence_threshold]
 
     # Apply size heuristic (pass the caller's threshold, not the global default)
@@ -278,46 +265,25 @@ def cluster_faces(
     threshold: float = MATCH_THRESHOLD,
 ) -> list[int]:
     """
-    Assign each descriptor to a person cluster using greedy nearest-centroid.
+    Assign each descriptor to a person cluster using DBSCAN.
 
-    This mirrors the frontend clustering logic so the backend and frontend
-    produce consistent groupings.
+    DBSCAN avoids centroid drift and order-dependence that plagued the old
+    greedy nearest-centroid approach.
 
-    Returns
-    -------
-    A list of cluster IDs (integers), one per input descriptor.
-    Descriptors with an empty list ([]) are assigned cluster ID -1 (unknown).
+    Returns a list of cluster IDs (ints), one per input descriptor.
+    Descriptors with an empty list ([]) are assigned -1 (unknown).
     """
-    centroids: list[np.ndarray] = []
-    cluster_ids: list[int] = []
-    cluster_sizes: list[int] = []
+    valid = [(i, d) for i, d in enumerate(descriptors) if d]
+    result = [-1] * len(descriptors)
 
-    for desc in descriptors:
-        if not desc:
-            cluster_ids.append(-1)
-            continue
+    if not valid:
+        return result
 
-        probe = np.array(desc, dtype=np.float64)
+    indices, vecs = zip(*valid)
+    matrix = np.array(vecs, dtype=np.float64)
+    labels = DBSCAN(eps=threshold, min_samples=1, metric="euclidean").fit_predict(matrix)
 
-        if not centroids:
-            centroids.append(probe.copy())
-            cluster_sizes.append(1)
-            cluster_ids.append(0)
-            continue
+    for i, label in zip(indices, labels):
+        result[i] = int(label)
 
-        gallery = np.array(centroids, dtype=np.float64)
-        distances = np.linalg.norm(gallery - probe, axis=1)
-        best_idx = int(np.argmin(distances))
-
-        if distances[best_idx] < threshold:
-            # Update centroid as running average
-            n = cluster_sizes[best_idx]
-            centroids[best_idx] = (centroids[best_idx] * n + probe) / (n + 1)
-            cluster_sizes[best_idx] += 1
-            cluster_ids.append(best_idx)
-        else:
-            centroids.append(probe.copy())
-            cluster_sizes.append(1)
-            cluster_ids.append(len(centroids) - 1)
-
-    return cluster_ids
+    return result
