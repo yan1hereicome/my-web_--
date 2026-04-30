@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MapContainer, Marker, TileLayer } from "react-leaflet";
 import BottomNav from "@/components/BottomNav";
+import { MapPin, ArrowLeft, Trash2, X, CalendarDays, Clock, ChevronLeft, ChevronRight } from "lucide-react";
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -27,20 +28,14 @@ type MapPhoto = {
   faceCount?: number;
 };
 
-type Cluster = {
-  key: string;
-  lat: number;
-  lng: number;
-  photos: MapPhoto[];
-};
+type Cluster = { key: string; lat: number; lng: number; photos: MapPhoto[] };
 
 const STORAGE_KEY = "photoMapPhotos";
 
 function makeClusterIcon(photo: MapPhoto, count: number): L.DivIcon {
-  const badge =
-    count > 1
-      ? `<span style="position:absolute;top:-5px;right:-5px;background:#ef4444;color:white;border-radius:50%;width:20px;height:20px;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:20px;">${count}</span>`
-      : "";
+  const badge = count > 1
+    ? `<span style="position:absolute;top:-5px;right:-5px;background:#ef4444;color:white;border-radius:50%;width:20px;height:20px;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:20px;">${count}</span>`
+    : "";
   return L.divIcon({
     html: `<div style="position:relative;width:52px;height:52px;border-radius:50%;border:3px solid #2563eb;box-shadow:0 2px 10px rgba(0,0,0,0.3);overflow:visible;background:white;">
       <img src="${photo.imageUrl}" style="width:52px;height:52px;object-fit:cover;border-radius:50%;display:block;" />
@@ -52,110 +47,77 @@ function makeClusterIcon(photo: MapPhoto, count: number): L.DivIcon {
   });
 }
 
-function PhotoModal({
-  cluster,
-  onClose,
-}: {
-  cluster: Cluster;
-  onClose: () => void;
-}) {
+function InfoChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
+      <p className="text-[10px] text-slate-400 font-medium mb-0.5">{label}</p>
+      <p className="text-xs font-bold text-slate-700 break-all">{value}</p>
+    </div>
+  );
+}
+
+function PhotoModal({ cluster, onClose }: { cluster: Cluster; onClose: () => void }) {
   const [idx, setIdx] = useState(0);
   const photo = cluster.photos[idx];
   const total = cluster.photos.length;
 
   return (
     <div
-      style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)",
-        zIndex: 3000, display: "flex", alignItems: "center",
-        justifyContent: "center", padding: "16px",
-      }}
+      className="fixed inset-0 bg-black/88 z-[3000] flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        style={{
-          background: "white", borderRadius: "20px",
-          maxWidth: "520px", width: "100%", overflow: "hidden",
-        }}
+        className="bg-white rounded-2xl max-w-[520px] w-full overflow-hidden shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-          padding: "14px 18px", borderBottom: "1px solid #e2e8f0",
-        }}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <p style={{
-              margin: 0, fontWeight: 700, fontSize: "15px",
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            }}>
-              {photo.fileName}
-            </p>
-            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#94a3b8" }}>
-              {photo.location?.split(",")[0] || "위치 정보 없음"} ·{" "}
-              {photo.captureDate || photo.uploadedAt || ""}
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-slate-900 text-sm truncate">{photo.fileName}</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {photo.location?.split(",")[0] || "위치 정보 없음"} · {photo.captureDate || photo.uploadedAt || ""}
             </p>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+          <div className="flex items-center gap-3 ml-4 flex-shrink-0">
             {total > 1 && (
-              <span style={{ fontSize: "13px", color: "#64748b", fontWeight: 600 }}>
-                {idx + 1} / {total}
-              </span>
+              <span className="text-xs text-slate-400 font-semibold">{idx + 1} / {total}</span>
             )}
-            <button
-              onClick={onClose}
-              style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#64748b" }}
-            >
-              ✕
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition-colors p-1">
+              <X size={20} />
             </button>
           </div>
         </div>
 
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={photo.imageUrl}
-          alt={photo.fileName}
-          style={{
-            width: "100%", maxHeight: "420px",
-            objectFit: "contain", display: "block", background: "#f1f5f9",
-          }}
-        />
+        <img src={photo.imageUrl} alt={photo.fileName}
+          className="w-full max-h-[420px] object-contain bg-slate-100" />
 
+        {/* Navigation for clusters */}
         {total > 1 && (
-          <div style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-            padding: "12px 16px", borderTop: "1px solid #f1f5f9",
-          }}>
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
             <button
               onClick={() => setIdx((i) => Math.max(0, i - 1))}
               disabled={idx === 0}
-              style={{
-                background: idx === 0 ? "#f1f5f9" : "#0f172a",
-                color: idx === 0 ? "#94a3b8" : "white",
-                border: "none", borderRadius: "10px", padding: "8px 16px",
-                fontWeight: 700, cursor: idx === 0 ? "default" : "pointer",
-                fontSize: "13px",
-              }}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
+                idx === 0
+                  ? "bg-slate-100 text-slate-300 cursor-not-allowed"
+                  : "bg-slate-900 text-white hover:bg-slate-700"
+              }`}
             >
-              ◀ 이전
+              <ChevronLeft size={16} /> 이전
             </button>
 
-            <div style={{ display: "flex", gap: "6px", overflowX: "auto", maxWidth: "60%" }}>
+            <div className="flex gap-1.5 overflow-x-auto max-w-[55%]">
               {cluster.photos.map((p, i) => (
                 <div
                   key={p.id}
                   onClick={() => setIdx(i)}
-                  style={{
-                    width: "36px", height: "36px", borderRadius: "6px",
-                    border: `2.5px solid ${i === idx ? "#2563eb" : "#e2e8f0"}`,
-                    overflow: "hidden", cursor: "pointer", flexShrink: 0,
-                  }}
+                  className={`w-9 h-9 rounded-lg overflow-hidden cursor-pointer flex-shrink-0 border-2 transition-all ${
+                    i === idx ? "border-blue-500" : "border-slate-200"
+                  }`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={p.imageUrl}
-                    alt={p.fileName}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  />
+                  <img src={p.imageUrl} alt={p.fileName} className="w-full h-full object-cover" />
                 </div>
               ))}
             </div>
@@ -163,23 +125,19 @@ function PhotoModal({
             <button
               onClick={() => setIdx((i) => Math.min(total - 1, i + 1))}
               disabled={idx === total - 1}
-              style={{
-                background: idx === total - 1 ? "#f1f5f9" : "#0f172a",
-                color: idx === total - 1 ? "#94a3b8" : "white",
-                border: "none", borderRadius: "10px", padding: "8px 16px",
-                fontWeight: 700, cursor: idx === total - 1 ? "default" : "pointer",
-                fontSize: "13px",
-              }}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
+                idx === total - 1
+                  ? "bg-slate-100 text-slate-300 cursor-not-allowed"
+                  : "bg-slate-900 text-white hover:bg-slate-700"
+              }`}
             >
-              다음 ▶
+              다음 <ChevronRight size={16} />
             </button>
           </div>
         )}
 
-        <div style={{
-          padding: "12px 18px", borderTop: "1px solid #e2e8f0",
-          display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px",
-        }}>
+        {/* Info grid */}
+        <div className="p-4 grid grid-cols-2 gap-2 border-t border-slate-100">
           {photo.captureDate && photo.captureDate !== "Not available" && (
             <InfoChip label="촬영일" value={photo.captureDate} />
           )}
@@ -187,7 +145,7 @@ function PhotoModal({
             <InfoChip label="촬영 시간" value={photo.captureTime} />
           )}
           {photo.location && (
-            <div style={{ gridColumn: "1 / -1" }}>
+            <div className="col-span-2">
               <InfoChip label="위치" value={photo.location} />
             </div>
           )}
@@ -196,15 +154,6 @@ function PhotoModal({
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function InfoChip({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ background: "#f8fafc", borderRadius: "8px", padding: "6px 10px" }}>
-      <p style={{ margin: 0, fontSize: "11px", color: "#94a3b8" }}>{label}</p>
-      <p style={{ margin: "2px 0 0", fontSize: "12px", fontWeight: 700, wordBreak: "break-all" }}>{value}</p>
     </div>
   );
 }
@@ -232,7 +181,6 @@ export default function MapPage() {
     return [photos[0].lat, photos[0].lng];
   }, [photos]);
 
-  // suppress unused warning — center is used by MapContainer
   void useEffect;
 
   function handleClear() {
@@ -242,47 +190,41 @@ export default function MapPage() {
   }
 
   return (
-    <main style={{ minHeight: "100vh", background: "#f8fafc", padding: "24px", paddingBottom: "110px" }}>
-      <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
+    <main className="min-h-screen bg-slate-50 px-6 py-8 pb-28">
+      <div className="max-w-5xl mx-auto">
 
-        <div style={{
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-          marginBottom: "20px", gap: "12px", flexWrap: "wrap",
-        }}>
-          <div>
-            <h1 style={{ fontSize: "48px", fontWeight: 800, margin: 0 }}>Photo Map</h1>
-            <p style={{ color: "#475569", marginTop: "8px" }}>
-              마커를 클릭하면 사진 전체보기 — 같은 위치 사진은 하나로 묶어서 보여줍니다.
-            </p>
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-md shadow-emerald-200">
+              <MapPin size={22} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Photo Map</h1>
+              <p className="text-slate-500 text-sm">마커를 클릭하면 사진 전체보기</p>
+            </div>
           </div>
-          <div style={{ display: "flex", gap: "10px" }}>
-            <Link href="/" style={{
-              padding: "12px 18px", background: "#0f172a", color: "white",
-              borderRadius: "12px", textDecoration: "none", fontWeight: 700,
-            }}>
-              Back to Upload
+          <div className="flex gap-2">
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-700 transition-colors"
+            >
+              <ArrowLeft size={15} /> Back
             </Link>
             {photos.length > 0 && (
-              <button onClick={handleClear} style={{
-                padding: "12px 18px", background: "#ef4444", color: "white",
-                border: "none", borderRadius: "12px", fontWeight: 700, cursor: "pointer",
-              }}>
-                전체 삭제
+              <button
+                onClick={handleClear}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600 transition-colors"
+              >
+                <Trash2 size={15} /> 전체 삭제
               </button>
             )}
           </div>
         </div>
 
-        <div style={{
-          height: "640px", width: "100%", borderRadius: "18px",
-          overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-        }}>
-          <MapContainer
-            center={center}
-            zoom={7}
-            scrollWheelZoom={true}
-            style={{ height: "100%", width: "100%" }}
-          >
+        {/* Map */}
+        <div className="h-[600px] w-full rounded-2xl overflow-hidden shadow-sm border border-slate-200 mb-6">
+          <MapContainer center={center} zoom={7} scrollWheelZoom={true} style={{ height: "100%", width: "100%" }}>
             <TileLayer
               attribution='&copy; OpenStreetMap contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -298,19 +240,20 @@ export default function MapPage() {
           </MapContainer>
         </div>
 
-        <section style={{
-          marginTop: "20px", background: "white", borderRadius: "18px",
-          padding: "20px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-        }}>
-          <h2 style={{ fontSize: "20px", fontWeight: 800, marginTop: 0 }}>
-            Saved Photos ({photos.length})
-          </h2>
+        {/* Photo list */}
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+            <MapPin size={16} className="text-emerald-500" />
+            <h2 className="font-bold text-slate-800">Saved Photos</h2>
+            <span className="text-xs text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full ml-auto">{photos.length}장</span>
+          </div>
+
           {photos.length === 0 ? (
-            <p style={{ color: "#64748b" }}>
-              아직 저장된 사진이 없습니다. 홈에서 사진을 업로드하고 저장해보세요.
-            </p>
+            <div className="p-10 text-center">
+              <p className="text-slate-400 text-sm">아직 저장된 사진이 없습니다. 홈에서 사진을 업로드하고 저장해보세요.</p>
+            </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "12px" }}>
+            <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
               {photos.map((photo) => (
                 <div
                   key={photo.id}
@@ -318,32 +261,18 @@ export default function MapPage() {
                     const c = clusters.find((cl) => cl.photos.some((p) => p.id === photo.id));
                     if (c) setActiveCluster(c);
                   }}
-                  style={{
-                    background: "#f8fafc", borderRadius: "12px", overflow: "hidden",
-                    cursor: "pointer", border: "1px solid #e2e8f0",
-                    transition: "transform 0.12s",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.02)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                  className="photo-card bg-slate-50 rounded-xl overflow-hidden cursor-pointer border border-slate-200"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={photo.imageUrl}
                     alt={photo.fileName}
-                    style={{
-                      width: "100%", height: "110px",
-                      objectFit: "contain", background: "#f1f5f9", display: "block",
-                    }}
+                    className="w-full h-24 object-contain bg-slate-100"
                   />
-                  <div style={{ padding: "8px 10px" }}>
-                    <p style={{
-                      margin: 0, fontWeight: 700, fontSize: "12px",
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    }}>
-                      {photo.fileName}
-                    </p>
-                    <p style={{ margin: "2px 0 0", color: "#64748b", fontSize: "11px" }}>
-                      {photo.captureDate || "날짜 없음"}
+                  <div className="p-2">
+                    <p className="font-bold text-slate-800 text-[11px] truncate">{photo.fileName}</p>
+                    <p className="text-[9px] text-slate-400 mt-0.5 flex items-center gap-0.5">
+                      <CalendarDays size={8} /> {photo.captureDate || "날짜 없음"}
                     </p>
                   </div>
                 </div>
@@ -356,7 +285,6 @@ export default function MapPage() {
       {activeCluster && (
         <PhotoModal cluster={activeCluster} onClose={() => setActiveCluster(null)} />
       )}
-
       <BottomNav />
     </main>
   );

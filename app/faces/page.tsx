@@ -3,70 +3,49 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import BottomNav from "@/components/BottomNav";
 import type { FacePhoto } from "@/app/page";
+import {
+  Users, ImageIcon, MapPin, CalendarDays, Trash2, X,
+  SlidersHorizontal, Terminal, AlertTriangle,
+} from "lucide-react";
 
 const FACES_STORAGE_KEY = "facesPhotos";
 
-// ── Person clustering types ───────────────────────────────────
-type FaceEntry = {
-  photo: FacePhoto;
-  boxIndex: number;
-};
+type FaceEntry = { photo: FacePhoto; boxIndex: number };
+type PersonCluster = { id: string; label: string; faces: FaceEntry[]; centroid: number[] };
 
-type PersonCluster = {
-  id: string;
-  label: string;
-  faces: FaceEntry[];
-  centroid: number[];
-};
-
-// ── Clustering utilities ──────────────────────────────────────
 function euclidean(a: number[], b: number[]): number {
   let s = 0;
   for (let i = 0; i < a.length; i++) s += (a[i] - b[i]) ** 2;
   return Math.sqrt(s);
 }
 
-// Greedy nearest-centroid clustering (professor's suggestion #2)
 function clusterByPerson(photos: FacePhoto[], threshold: number): PersonCluster[] {
   const clusters: PersonCluster[] = [];
-
   for (const photo of photos) {
     if (!photo.descriptors?.length || !photo.boxes?.length) continue;
     for (let i = 0; i < photo.descriptors.length; i++) {
       const desc = photo.descriptors[i];
       if (!desc?.length) continue;
-
       let nearest: PersonCluster | null = null;
       let minDist = Infinity;
       for (const c of clusters) {
         const d = euclidean(desc, c.centroid);
         if (d < minDist) { minDist = d; nearest = c; }
       }
-
       if (nearest && minDist < threshold) {
         nearest.faces.push({ photo, boxIndex: i });
         const n = nearest.faces.length;
         nearest.centroid = nearest.centroid.map((v, j) => (v * (n - 1) + desc[j]) / n);
       } else {
-        clusters.push({
-          id: `p${clusters.length}`,
-          label: `Person ${clusters.length + 1}`,
-          faces: [{ photo, boxIndex: i }],
-          centroid: [...desc],
-        });
+        clusters.push({ id: `p${clusters.length}`, label: `Person ${clusters.length + 1}`, faces: [{ photo, boxIndex: i }], centroid: [...desc] });
       }
     }
   }
-
-  return clusters
-    .sort((a, b) => b.faces.length - a.faces.length)
-    .map((c, i) => ({ ...c, label: `Person ${i + 1}` }));
+  return clusters.sort((a, b) => b.faces.length - a.faces.length).map((c, i) => ({ ...c, label: `Person ${i + 1}` }));
 }
 
-// ── Canvas helpers ────────────────────────────────────────────
 function PhotoWithBoxes({ photo }: { photo: FacePhoto }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -83,10 +62,8 @@ function PhotoWithBoxes({ photo }: { photo: FacePhoto }) {
       const labelH = Math.max(26, img.height / 22);
       const fontSize = Math.max(13, labelH * 0.62);
       photo.boxes.forEach((box, i) => {
-        const x = box.x * img.width;
-        const y = box.y * img.height;
-        const w = box.width * img.width;
-        const h = box.height * img.height;
+        const x = box.x * img.width, y = box.y * img.height;
+        const w = box.width * img.width, h = box.height * img.height;
         ctx.strokeStyle = "#2563eb";
         ctx.lineWidth = lineW;
         ctx.strokeRect(x, y, w, h);
@@ -100,23 +77,16 @@ function PhotoWithBoxes({ photo }: { photo: FacePhoto }) {
       });
     };
   }, [photo]);
-
-  return <canvas ref={canvasRef} style={{ width: "100%", height: "auto", display: "block" }} />;
+  return <canvas ref={canvasRef} className="w-full h-auto block" />;
 }
 
-function FaceChip({
-  imageUrl,
-  box,
-  index,
-  size = 58,
-}: {
+function FaceChip({ imageUrl, box, index, size = 58 }: {
   imageUrl: string;
   box: { x: number; y: number; width: number; height: number };
   index: number;
   size?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -125,13 +95,10 @@ function FaceChip({
     const img = new Image();
     img.src = imageUrl;
     img.onload = () => {
-      const px = box.x * img.width;
-      const py = box.y * img.height;
-      const pw = box.width * img.width;
-      const ph = box.height * img.height;
+      const px = box.x * img.width, py = box.y * img.height;
+      const pw = box.width * img.width, ph = box.height * img.height;
       const pad = Math.min(pw, ph) * 0.22;
-      const sx = Math.max(0, px - pad);
-      const sy = Math.max(0, py - pad);
+      const sx = Math.max(0, px - pad), sy = Math.max(0, py - pad);
       const sw = Math.min(img.width - sx, pw + pad * 2);
       const sh = Math.min(img.height - sy, ph + pad * 2);
       canvas.width = size;
@@ -139,65 +106,45 @@ function FaceChip({
       ctx.drawImage(img, sx, sy, sw, sh, 0, 0, size, size);
     };
   }, [imageUrl, box, size]);
-
   return (
-    <div style={{ textAlign: "center" }}>
+    <div className="text-center">
       <canvas
         ref={canvasRef}
-        style={{ width: `${size}px`, height: `${size}px`, borderRadius: "50%", border: "3px solid #2563eb", display: "block" }}
+        style={{ width: `${size}px`, height: `${size}px` }}
+        className="rounded-full border-2 border-blue-500 block"
       />
-      <span style={{ fontSize: "11px", color: "#64748b", marginTop: "3px", display: "block" }}>
-        #{index + 1}
-      </span>
+      <span className="text-[10px] text-slate-400 mt-1 block">#{index + 1}</span>
     </div>
   );
 }
 
-// ── Photo detail modal ────────────────────────────────────────
-function PhotoModal({
-  photo,
-  onClose,
-  onDelete,
-}: {
-  photo: FacePhoto;
-  onClose: () => void;
-  onDelete: (id: string) => void;
+function PhotoModal({ photo, onClose, onDelete }: {
+  photo: FacePhoto; onClose: () => void; onDelete: (id: string) => void;
 }) {
   return (
-    <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 2000,
-        display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", overflowY: "auto" }}
-      onClick={onClose}
-    >
-      <div
-        style={{ maxWidth: "600px", width: "100%", background: "white", borderRadius: "20px", overflow: "hidden" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
-          padding: "16px 20px", borderBottom: "1px solid #e2e8f0" }}>
+    <div className="fixed inset-0 bg-black/85 z-[2000] flex items-center justify-center p-5 overflow-y-auto" onClick={onClose}>
+      <div className="max-w-[600px] w-full bg-white rounded-2xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
           <div>
-            <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#1e293b" }}>{photo.fileName}</h3>
-            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#94a3b8" }}>
+            <h3 className="font-bold text-slate-900 text-sm">{photo.fileName}</h3>
+            <p className="text-xs text-slate-400 mt-0.5">
               얼굴 {photo.faceCount}명 · {photo.uploadedAt}
               {photo.location && ` · ${photo.location.split(",")[0]}`}
             </p>
           </div>
-          <button onClick={onClose}
-            style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#64748b" }}>
-            ✕
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition-colors p-1">
+            <X size={20} />
           </button>
         </div>
 
-        <div style={{ background: "#f1f5f9" }}>
+        <div className="bg-slate-100">
           <PhotoWithBoxes photo={photo} />
         </div>
 
         {photo.boxes && photo.boxes.length > 0 && (
-          <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9" }}>
-            <p style={{ margin: "0 0 8px", fontSize: "13px", color: "#64748b" }}>
-              감지된 얼굴 ({photo.faceCount}명)
-            </p>
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <div className="px-5 py-4 border-b border-slate-100">
+            <p className="text-xs text-slate-400 mb-3">감지된 얼굴 ({photo.faceCount}명)</p>
+            <div className="flex gap-2.5 flex-wrap">
               {photo.boxes.map((box, i) => (
                 <FaceChip key={i} imageUrl={photo.imageUrl} box={box} index={i} />
               ))}
@@ -205,13 +152,12 @@ function PhotoModal({
           </div>
         )}
 
-        <div style={{ padding: "14px 20px" }}>
+        <div className="px-5 py-4">
           <button
             onClick={() => { onDelete(photo.id); onClose(); }}
-            style={{ width: "100%", background: "#ef4444", color: "white", border: "none",
-              borderRadius: "10px", padding: "12px", fontWeight: 700, fontSize: "14px", cursor: "pointer" }}
+            className="w-full flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold text-sm transition-colors"
           >
-            삭제
+            <Trash2 size={15} /> 삭제
           </button>
         </div>
       </div>
@@ -219,58 +165,37 @@ function PhotoModal({
   );
 }
 
-// ── Person cluster modal ──────────────────────────────────────
 function PersonModal({ cluster, onClose }: { cluster: PersonCluster; onClose: () => void }) {
   return (
-    <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 2000,
-        display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", overflowY: "auto" }}
-      onClick={onClose}
-    >
-      <div
-        style={{ maxWidth: "640px", width: "100%", background: "white", borderRadius: "20px",
-          overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
-          padding: "16px 20px", borderBottom: "1px solid #e2e8f0", flexShrink: 0 }}>
+    <div className="fixed inset-0 bg-black/85 z-[2000] flex items-center justify-center p-5 overflow-y-auto" onClick={onClose}>
+      <div className="max-w-[640px] w-full bg-white rounded-2xl overflow-hidden shadow-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 flex-shrink-0">
           <div>
-            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700 }}>{cluster.label}</h3>
-            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#94a3b8" }}>
+            <h3 className="font-bold text-slate-900 text-base">{cluster.label}</h3>
+            <p className="text-xs text-slate-400 mt-0.5">
               {cluster.faces.length}번 등장 · {new Set(cluster.faces.map(f => f.photo.id)).size}장의 사진
             </p>
           </div>
-          <button onClick={onClose}
-            style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#64748b" }}>
-            ✕
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition-colors p-1">
+            <X size={20} />
           </button>
         </div>
 
-        <div style={{ padding: "16px 20px", overflowY: "auto" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+        <div className="p-5 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-3">
             {cluster.faces.map((face, idx) => {
               const box = face.photo.boxes?.[face.boxIndex];
               return (
                 <div key={`${face.photo.id}_${face.boxIndex}_${idx}`}
-                  style={{ background: "#f8fafc", borderRadius: "12px", overflow: "hidden",
-                    border: "1px solid #e2e8f0" }}>
+                  className="bg-slate-50 rounded-xl overflow-hidden border border-slate-200">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={face.photo.imageUrl} alt={face.photo.fileName}
-                    style={{ width: "100%", height: "110px", objectFit: "cover", display: "block", background: "#f1f5f9" }} />
-                  <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: "8px" }}>
-                    {box && (
-                      <div style={{ flexShrink: 0 }}>
-                        <FaceChip imageUrl={face.photo.imageUrl} box={box} index={face.boxIndex} size={44} />
-                      </div>
-                    )}
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, overflow: "hidden",
-                        textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {face.photo.fileName}
-                      </p>
-                      <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#94a3b8" }}>
-                        {face.photo.uploadedAt.slice(0, 10)}
-                      </p>
+                    className="w-full h-28 object-cover bg-slate-100" />
+                  <div className="p-2.5 flex items-center gap-2.5">
+                    {box && <div className="flex-shrink-0"><FaceChip imageUrl={face.photo.imageUrl} box={box} index={face.boxIndex} size={44} /></div>}
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-800 truncate">{face.photo.fileName}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{face.photo.uploadedAt.slice(0, 10)}</p>
                     </div>
                   </div>
                 </div>
@@ -283,7 +208,6 @@ function PersonModal({ cluster, onClose }: { cluster: PersonCluster; onClose: ()
   );
 }
 
-// ── Date parsing ──────────────────────────────────────────────
 function parseDate(str: string): Date {
   const d = new Date(str);
   if (!isNaN(d.getTime())) return d;
@@ -292,16 +216,13 @@ function parseDate(str: string): Date {
   return new Date(0);
 }
 
-// ── Main page ─────────────────────────────────────────────────
 export default function FacesPage() {
   const [storedPhotos, setStoredPhotos] = useState<FacePhoto[]>(() => {
     if (typeof window === "undefined") return [];
     try {
       const raw = localStorage.getItem(FACES_STORAGE_KEY);
       const photos: FacePhoto[] = raw ? JSON.parse(raw) : [];
-      return [...photos].sort(
-        (a, b) => parseDate(b.uploadedAt).getTime() - parseDate(a.uploadedAt).getTime()
-      );
+      return [...photos].sort((a, b) => parseDate(b.uploadedAt).getTime() - parseDate(a.uploadedAt).getTime());
     } catch { return []; }
   });
 
@@ -316,11 +237,7 @@ export default function FacesPage() {
     localStorage.setItem(FACES_STORAGE_KEY, JSON.stringify(next));
   }
 
-  const clusters = useMemo(
-    () => clusterByPerson(storedPhotos, threshold),
-    [storedPhotos, threshold]
-  );
-
+  const clusters = useMemo(() => clusterByPerson(storedPhotos, threshold), [storedPhotos, threshold]);
   const hasDescriptors = storedPhotos.some((p) => p.descriptors?.length);
 
   function getGroupKey(photo: FacePhoto): string {
@@ -342,189 +259,184 @@ export default function FacesPage() {
   });
 
   return (
-    <div style={{ padding: "20px 20px 120px", maxWidth: "680px", margin: "0 auto" }}>
-      <h1 style={{ fontSize: "28px", fontWeight: 800, marginBottom: "4px" }}>Faces</h1>
-      <p style={{ color: "#64748b", marginBottom: "16px", fontSize: "14px" }}>
-        홈에서 얼굴이 감지된 사진이 자동으로 저장됩니다.
-      </p>
+    <main className="min-h-screen bg-slate-50 px-5 py-8 pb-28">
+      <div className="max-w-2xl mx-auto">
 
-      {storedPhotos.length === 0 ? (
-        <div style={{ background: "white", borderRadius: "16px", padding: "48px 24px",
-          textAlign: "center", border: "2px dashed #e2e8f0" }}>
-          <p style={{ fontSize: "40px", margin: "0 0 12px" }}>📂</p>
-          <p style={{ fontWeight: 700, color: "#334155", margin: "0 0 6px" }}>
-            아직 저장된 얼굴 사진이 없습니다
-          </p>
-          <p style={{ color: "#94a3b8", fontSize: "14px", margin: 0 }}>
-            홈 화면에서 사진을 업로드하면<br />얼굴이 감지된 사진이 자동으로 여기에 모입니다.
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* ── Tabs ── */}
-          <div style={{ display: "flex", gap: "6px", marginBottom: "20px",
-            background: "#f1f5f9", borderRadius: "12px", padding: "4px" }}>
-            {(["people", "photos"] as const).map((tab) => (
-              <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                flex: 1, padding: "9px", border: "none", borderRadius: "9px",
-                fontWeight: 700, fontSize: "14px", cursor: "pointer",
-                background: activeTab === tab ? "white" : "transparent",
-                color: activeTab === tab ? "#0f172a" : "#64748b",
-                boxShadow: activeTab === tab ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
-                transition: "all 0.15s",
-              }}>
-                {tab === "people" ? "🙂 사람별" : "📷 사진별"}
-              </button>
-            ))}
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-10 h-10 bg-rose-500 rounded-xl flex items-center justify-center shadow-md shadow-rose-200">
+            <Users size={22} className="text-white" />
           </div>
+          <div>
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Faces</h1>
+            <p className="text-slate-500 text-sm">홈에서 얼굴이 감지된 사진이 자동으로 저장됩니다.</p>
+          </div>
+        </div>
 
-          {/* ── People tab ── */}
-          {activeTab === "people" && (
-            <div>
-              {!hasDescriptors ? (
-                <div style={{ background: "#fffbeb", border: "1px solid #fde68a",
-                  borderRadius: "14px", padding: "18px 20px" }}>
-                  <p style={{ margin: "0 0 6px", fontWeight: 700, fontSize: "14px", color: "#92400e" }}>
-                    ⚠️ 향상 모델이 필요합니다
-                  </p>
-                  <p style={{ margin: "0 0 10px", fontSize: "13px", color: "#78350f", lineHeight: 1.7 }}>
-                    사람별 분류를 쓰려면 SSD + Face Recognition 모델 파일이 필요합니다.<br />
-                    터미널에서 아래 명령어를 실행하고 앱을 재시작하세요.
-                  </p>
-                  <code style={{ display: "block", background: "#1e293b", color: "#86efac",
-                    borderRadius: "8px", padding: "10px 14px", fontSize: "13px" }}>
-                    bash _scripts/download-models.sh
-                  </code>
-                </div>
-              ) : (
-                <>
-                  <div style={{ background: "white", borderRadius: "14px", padding: "16px 18px",
-                    marginBottom: "16px", border: "1px solid #e2e8f0",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
-                      <span style={{ fontSize: "14px", fontWeight: 700, color: "#334155" }}>
-                        얼굴 유사도 기준
-                      </span>
-                      <span style={{ fontSize: "14px", fontWeight: 700, color: "#2563eb" }}>
-                        {clusters.length}명 감지됨
-                      </span>
-                    </div>
-                    <input
-                      type="range" min={0.3} max={0.7} step={0.01}
-                      value={threshold}
-                      onChange={(e) => setThreshold(parseFloat(e.target.value))}
-                      style={{ width: "100%", accentColor: "#2563eb" }}
-                    />
-                    <div style={{ display: "flex", justifyContent: "space-between",
-                      fontSize: "11px", color: "#94a3b8", marginTop: "6px" }}>
-                      <span>← 엄격 (같은 사람만)</span>
-                      <span>느슨 (비슷한 얼굴 포함) →</span>
-                    </div>
-                  </div>
-
-                  {clusters.length === 0 ? (
-                    <p style={{ textAlign: "center", color: "#94a3b8", padding: "40px 0" }}>
-                      기준을 조정하면 얼굴이 분류됩니다.
-                    </p>
-                  ) : (
-                    <div style={{ display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "12px" }}>
-                      {clusters.map((cluster) => {
-                        const rep = cluster.faces[0];
-                        const repBox = rep.photo.boxes?.[rep.boxIndex];
-                        return (
-                          <div key={cluster.id}
-                            onClick={() => setSelectedCluster(cluster)}
-                            style={{ background: "white", borderRadius: "16px", padding: "16px 12px",
-                              textAlign: "center", cursor: "pointer", border: "1px solid #e2e8f0",
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.05)", transition: "transform 0.12s" }}
-                            onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.04)")}
-                            onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-                          >
-                            <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
-                              {repBox ? (
-                                <FaceChip imageUrl={rep.photo.imageUrl} box={repBox}
-                                  index={rep.boxIndex} size={76} />
-                              ) : (
-                                <div style={{ width: "76px", height: "76px", borderRadius: "50%",
-                                  background: "#f1f5f9", display: "flex", alignItems: "center",
-                                  justifyContent: "center", fontSize: "28px" }}>
-                                  🙂
-                                </div>
-                              )}
-                            </div>
-                            <p style={{ margin: "0 0 2px", fontWeight: 700, fontSize: "13px", color: "#1e293b" }}>
-                              {cluster.label}
-                            </p>
-                            <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>
-                              {cluster.faces.length}번 등장
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              )}
+        {storedPhotos.length === 0 ? (
+          <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-16 text-center">
+            <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Users size={28} className="text-slate-300" />
             </div>
-          )}
-
-          {/* ── Photos tab ── */}
-          {activeTab === "photos" && (
-            <div>
-              {Object.entries(photoGroups).map(([groupKey, photos]) => (
-                <div key={groupKey} style={{ marginBottom: "28px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-                    <span style={{ fontSize: "16px" }}>{photos[0]?.location ? "📍" : "📅"}</span>
-                    <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#1e293b" }}>
-                      {groupKey}
-                    </h3>
-                    <span style={{ fontSize: "13px", color: "#94a3b8" }}>({photos.length}장)</span>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                    {photos.map((photo) => (
-                      <div key={photo.id}
-                        onClick={() => setSelectedPhoto(photo)}
-                        style={{ background: "white", borderRadius: "14px", overflow: "hidden",
-                          border: "1px solid #e2e8f0", cursor: "pointer",
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.05)", transition: "transform 0.12s" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.02)")}
-                        onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={photo.imageUrl} alt={photo.fileName}
-                          style={{ width: "100%", height: "160px", objectFit: "contain",
-                            display: "block", background: "#f1f5f9" }} />
-                        <div style={{ padding: "8px 10px" }}>
-                          <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "#1e293b",
-                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {photo.fileName}
-                          </p>
-                          <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#94a3b8" }}>
-                            얼굴 {photo.faceCount}명 · {photo.uploadedAt.slice(0, 10)}
-                            {photo.descriptors && (
-                              <span style={{ marginLeft: "4px", color: "#16a34a" }}>✓</span>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            <p className="font-bold text-slate-700 mb-1">아직 저장된 얼굴 사진이 없습니다</p>
+            <p className="text-slate-400 text-sm">홈 화면에서 사진을 업로드하면<br />얼굴이 감지된 사진이 자동으로 여기에 모입니다.</p>
+          </div>
+        ) : (
+          <>
+            {/* Tabs */}
+            <div className="flex gap-1 mb-6 bg-slate-100 rounded-xl p-1">
+              {(["people", "photos"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                    activeTab === tab
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  {tab === "people" ? <Users size={15} /> : <ImageIcon size={15} />}
+                  {tab === "people" ? "사람별" : "사진별"}
+                </button>
               ))}
             </div>
-          )}
-        </>
-      )}
 
-      {selectedPhoto && (
-        <PhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} onDelete={handleDelete} />
-      )}
-      {selectedCluster && (
-        <PersonModal cluster={selectedCluster} onClose={() => setSelectedCluster(null)} />
-      )}
+            {/* People tab */}
+            {activeTab === "people" && (
+              <div>
+                {!hasDescriptors ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertTriangle size={16} className="text-amber-600" />
+                      <p className="font-bold text-amber-800 text-sm">향상 모델이 필요합니다</p>
+                    </div>
+                    <p className="text-sm text-amber-700 leading-relaxed mb-3">
+                      사람별 분류를 쓰려면 SSD + Face Recognition 모델 파일이 필요합니다.<br />
+                      터미널에서 아래 명령어를 실행하고 앱을 재시작하세요.
+                    </p>
+                    <div className="bg-slate-900 rounded-xl px-4 py-3 flex items-center gap-2">
+                      <Terminal size={14} className="text-emerald-400 flex-shrink-0" />
+                      <code className="text-emerald-400 text-sm">bash _scripts/download-models.sh</code>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Threshold slider */}
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-5">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <SlidersHorizontal size={15} className="text-slate-500" />
+                          <span className="text-sm font-bold text-slate-700">얼굴 유사도 기준</span>
+                        </div>
+                        <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">
+                          {clusters.length}명 감지됨
+                        </span>
+                      </div>
+                      <input
+                        type="range" min={0.3} max={0.7} step={0.01}
+                        value={threshold}
+                        onChange={(e) => setThreshold(parseFloat(e.target.value))}
+                        className="w-full"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-400 mt-1.5">
+                        <span>← 엄격 (같은 사람만)</span>
+                        <span>느슨 (비슷한 얼굴 포함) →</span>
+                      </div>
+                    </div>
+
+                    {clusters.length === 0 ? (
+                      <p className="text-center text-slate-400 py-10">기준을 조정하면 얼굴이 분류됩니다.</p>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {clusters.map((cluster) => {
+                          const rep = cluster.faces[0];
+                          const repBox = rep.photo.boxes?.[rep.boxIndex];
+                          return (
+                            <div
+                              key={cluster.id}
+                              onClick={() => setSelectedCluster(cluster)}
+                              className="photo-card bg-white rounded-2xl border border-slate-200 shadow-sm p-4 text-center cursor-pointer"
+                            >
+                              <div className="flex justify-center mb-3">
+                                {repBox ? (
+                                  <FaceChip imageUrl={rep.photo.imageUrl} box={repBox} index={rep.boxIndex} size={72} />
+                                ) : (
+                                  <div className="w-18 h-18 rounded-full bg-slate-100 flex items-center justify-center">
+                                    <Users size={28} className="text-slate-300" />
+                                  </div>
+                                )}
+                              </div>
+                              <p className="font-bold text-slate-800 text-sm">{cluster.label}</p>
+                              <p className="text-xs text-slate-400 mt-0.5">{cluster.faces.length}번 등장</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Photos tab */}
+            {activeTab === "photos" && (
+              <div className="space-y-6">
+                {Object.entries(photoGroups).map(([groupKey, photos]) => (
+                  <div key={groupKey}>
+                    <div className="flex items-center gap-2 mb-3">
+                      {photos[0]?.location ? <MapPin size={15} className="text-blue-500" /> : <CalendarDays size={15} className="text-slate-400" />}
+                      <h3 className="font-bold text-slate-800 text-sm">{groupKey}</h3>
+                      <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{photos.length}장</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {photos.map((photo) => (
+                        <div
+                          key={photo.id}
+                          onClick={() => setSelectedPhoto(photo)}
+                          className="photo-card bg-white rounded-xl overflow-hidden border border-slate-200 cursor-pointer shadow-sm relative group"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={photo.imageUrl} alt={photo.fileName}
+                            className="w-full h-40 object-contain bg-slate-100" />
+
+                          {/* Direct delete button — visible on hover */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm("이 사진을 삭제하시겠습니까?")) handleDelete(photo.id);
+                            }}
+                            className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+
+                          <div className="p-2.5">
+                            <p className="font-bold text-slate-800 text-xs truncate">{photo.fileName}</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+                              <Users size={9} /> 얼굴 {photo.faceCount}명
+                              {photo.descriptors && <span className="text-emerald-500 ml-1">✓</span>}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {selectedPhoto && (
+          <PhotoModal photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} onDelete={handleDelete} />
+        )}
+        {selectedCluster && (
+          <PersonModal cluster={selectedCluster} onClose={() => setSelectedCluster(null)} />
+        )}
+      </div>
 
       <BottomNav />
-    </div>
+    </main>
   );
 }

@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import BottomNav from "@/components/BottomNav";
 import { toggleSaved } from "@/lib/savedUtils";
+import {
+  Images, MapPin, Users, Image, Star, Download, Trash2,
+  X, CalendarDays, Clock, SlidersHorizontal,
+} from "lucide-react";
 
 type MapPhoto = {
   id: string;
@@ -21,11 +25,17 @@ type Filter = "전체" | "인물 사진" | "일반 사진";
 const FILTERS: Filter[] = ["전체", "인물 사진", "일반 사진"];
 const STORAGE_KEY = "photoMapPhotos";
 
+function InfoChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
+      <p className="text-[10px] text-slate-400 font-medium mb-0.5">{label}</p>
+      <p className="text-xs font-bold text-slate-700 break-all">{value}</p>
+    </div>
+  );
+}
+
 function PhotoModal({
-  photo,
-  onClose,
-  onDelete,
-  onDownload,
+  photo, onClose, onDelete, onDownload,
 }: {
   photo: MapPhoto;
   onClose: () => void;
@@ -34,38 +44,31 @@ function PhotoModal({
 }) {
   return (
     <div
-      style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)",
-        zIndex: 2000, display: "flex", alignItems: "center",
-        justifyContent: "center", padding: "20px",
-      }}
+      className="fixed inset-0 bg-black/85 z-[2000] flex items-center justify-center p-5"
       onClick={onClose}
     >
       <div
-        style={{ maxWidth: "520px", width: "100%", background: "white", borderRadius: "20px", overflow: "hidden" }}
+        className="max-w-[520px] w-full bg-white rounded-2xl overflow-hidden shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-          padding: "14px 18px", borderBottom: "1px solid #e2e8f0",
-        }}>
-          <div>
-            <p style={{ margin: 0, fontWeight: 700, fontSize: "15px" }}>{photo.fileName}</p>
-            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#94a3b8" }}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+          <div className="min-w-0">
+            <p className="font-bold text-slate-900 text-sm truncate">{photo.fileName}</p>
+            <p className="text-xs text-slate-400 mt-0.5">
               {photo.location?.split(",")[0] || "위치 정보 없음"} · {photo.captureDate || photo.uploadedAt || ""}
             </p>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#64748b" }}>✕</button>
+          <button onClick={onClose} className="ml-4 text-slate-400 hover:text-slate-700 transition-colors p-1">
+            <X size={20} />
+          </button>
         </div>
 
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={photo.imageUrl}
-          alt={photo.fileName}
-          style={{ width: "100%", maxHeight: "420px", objectFit: "contain", display: "block", background: "#f1f5f9" }}
-        />
+        <img src={photo.imageUrl} alt={photo.fileName}
+          className="w-full max-h-[420px] object-contain bg-slate-100" />
 
-        <div style={{ padding: "14px 18px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+        <div className="p-4 grid grid-cols-2 gap-2">
           {photo.captureDate && photo.captureDate !== "Not available" && (
             <InfoChip label="촬영일" value={photo.captureDate} />
           )}
@@ -73,7 +76,7 @@ function PhotoModal({
             <InfoChip label="촬영 시간" value={photo.captureTime} />
           )}
           {photo.location && (
-            <div style={{ gridColumn: "1 / -1" }}>
+            <div className="col-span-2">
               <InfoChip label="위치" value={photo.location} />
             </div>
           )}
@@ -83,26 +86,18 @@ function PhotoModal({
           />
         </div>
 
-        <div style={{ display: "flex", gap: "8px", padding: "12px 18px", borderTop: "1px solid #e2e8f0" }}>
+        <div className="flex gap-2 px-4 py-3 border-t border-slate-100">
           <button
             onClick={() => onDownload(photo)}
-            style={{
-              flex: 1, background: "#0f172a", color: "white", border: "none",
-              borderRadius: "10px", padding: "11px", fontWeight: 700,
-              fontSize: "14px", cursor: "pointer",
-            }}
+            className="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-slate-700 transition-colors"
           >
-            다운로드
+            <Download size={15} /> 다운로드
           </button>
           <button
             onClick={() => { onDelete(photo.id); onClose(); }}
-            style={{
-              flex: 1, background: "#ef4444", color: "white", border: "none",
-              borderRadius: "10px", padding: "11px", fontWeight: 700,
-              fontSize: "14px", cursor: "pointer",
-            }}
+            className="flex-1 flex items-center justify-center gap-2 bg-red-500 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-red-600 transition-colors"
           >
-            삭제
+            <Trash2 size={15} /> 삭제
           </button>
         </div>
       </div>
@@ -110,14 +105,11 @@ function PhotoModal({
   );
 }
 
-function InfoChip({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ background: "#f8fafc", borderRadius: "8px", padding: "6px 10px" }}>
-      <p style={{ margin: 0, fontSize: "11px", color: "#94a3b8" }}>{label}</p>
-      <p style={{ margin: "2px 0 0", fontSize: "12px", fontWeight: 700, wordBreak: "break-all" }}>{value}</p>
-    </div>
-  );
-}
+const filterIcons: Record<Filter, React.ElementType> = {
+  "전체":    SlidersHorizontal,
+  "인물 사진": Users,
+  "일반 사진": Image,
+};
 
 export default function AlbumsPage() {
   const [photos, setPhotos] = useState<MapPhoto[]>(() => {
@@ -125,10 +117,9 @@ export default function AlbumsPage() {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
   });
-
-  const [filter, setFilter]               = useState<Filter>("전체");
+  const [filter,        setFilter]        = useState<Filter>("전체");
   const [selectedPhoto, setSelectedPhoto] = useState<MapPhoto | null>(null);
-  const [savedIds, setSavedIds] = useState<Set<string>>(() => {
+  const [savedIds,      setSavedIds]      = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
     const raw = localStorage.getItem("savedPhotos");
     const list = raw ? JSON.parse(raw) : [];
@@ -182,150 +173,127 @@ export default function AlbumsPage() {
   }, [filtered]);
 
   return (
-    <main style={{ minHeight: "100vh", background: "#f8fafc", padding: "24px", paddingBottom: "110px" }}>
-      <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
+    <main className="min-h-screen bg-slate-50 px-6 py-8 pb-28">
+      <div className="max-w-5xl mx-auto">
 
-        <h1 style={{ fontSize: "48px", fontWeight: 800, marginBottom: "4px" }}>Albums</h1>
-        <p style={{ color: "#475569", marginBottom: "20px" }}>
-          지도에 저장된 사진을 위치별로 묶어서 보여줍니다.
-        </p>
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 bg-violet-600 rounded-xl flex items-center justify-center shadow-md shadow-violet-200">
+            <Images size={22} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Albums</h1>
+            <p className="text-slate-500 text-sm">지도에 저장된 사진을 위치별로 묶어서 보여줍니다.</p>
+          </div>
+        </div>
 
-        <div style={{ display: "flex", gap: "8px", marginBottom: "24px", flexWrap: "wrap" }}>
+        {/* Filter tabs */}
+        <div className="flex gap-2 mt-6 mb-6 flex-wrap">
           {FILTERS.map((f) => {
             const active = filter === f;
+            const Icon = filterIcons[f];
             return (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                style={{
-                  padding: "9px 20px", borderRadius: "999px", border: "none",
-                  background: active ? "#2563eb" : "white",
-                  color: active ? "white" : "#475569",
-                  fontWeight: 700, cursor: "pointer", fontSize: "14px",
-                  boxShadow: active
-                    ? "0 2px 8px rgba(37,99,235,0.3)"
-                    : "0 1px 4px rgba(0,0,0,0.08)",
-                  transition: "all 0.15s",
-                }}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                  active
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
+                    : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                }`}
               >
-                {f === "인물 사진" ? "👤 " : f === "일반 사진" ? "🖼️ " : "📋 "}
-                {f} ({counts[f]})
+                <Icon size={14} />
+                {f}
+                <span className={`ml-0.5 text-xs ${active ? "text-blue-100" : "text-slate-400"}`}>
+                  {counts[f]}
+                </span>
               </button>
             );
           })}
         </div>
 
+        {/* Empty state */}
         {grouped.length === 0 ? (
-          <div style={{
-            background: "white", borderRadius: "18px", padding: "48px 24px",
-            textAlign: "center", border: "2px dashed #e2e8f0",
-          }}>
-            <p style={{ fontSize: "36px", margin: "0 0 12px" }}>
-              {filter === "인물 사진" ? "👤" : filter === "일반 사진" ? "🖼️" : "📂"}
+          <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-16 text-center">
+            <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Images size={28} className="text-slate-300" />
+            </div>
+            <p className="font-bold text-slate-700 mb-1">
+              {filter === "전체" ? "아직 저장된 사진이 없습니다" : `${filter}이 없습니다`}
             </p>
-            <p style={{ fontWeight: 700, color: "#334155", margin: "0 0 6px" }}>
-              {filter === "전체"
-                ? "아직 저장된 사진이 없습니다"
-                : `${filter}이 없습니다`}
-            </p>
-            <p style={{ color: "#94a3b8", fontSize: "14px", margin: 0 }}>
-              홈에서 사진을 업로드하고 지도에 저장해보세요.
-            </p>
+            <p className="text-slate-400 text-sm">홈에서 사진을 업로드하고 지도에 저장해보세요.</p>
           </div>
         ) : (
-          grouped.map(([groupName, items]) => (
-            <section
-              key={groupName}
-              style={{
-                background: "white", borderRadius: "18px", padding: "20px",
-                marginBottom: "20px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-                <span style={{ fontSize: "18px" }}>📍</span>
-                <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 800 }}>{groupName}</h2>
-                <span style={{ fontSize: "13px", color: "#94a3b8" }}>({items.length}장)</span>
-              </div>
+          <div className="space-y-5">
+            {grouped.map(([groupName, items]) => (
+              <section key={groupName} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                {/* Group header */}
+                <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+                  <MapPin size={16} className="text-blue-500 flex-shrink-0" />
+                  <h2 className="font-bold text-slate-800 text-base flex-1">{groupName}</h2>
+                  <span className="text-xs text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">{items.length}장</span>
+                </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "12px" }}>
-                {items.map((photo) => (
-                  <div
-                    key={photo.id}
-                    onClick={() => setSelectedPhoto(photo)}
-                    style={{
-                      borderRadius: "14px", overflow: "hidden", cursor: "pointer",
-                      border: "1px solid #e2e8f0", background: "#f8fafc",
-                      transition: "transform 0.12s",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.02)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={photo.imageUrl}
-                      alt={photo.fileName}
-                      style={{
-                        width: "100%", height: "140px",
-                        objectFit: "contain", display: "block", background: "#f1f5f9",
-                      }}
-                    />
-                    <div style={{ padding: "8px 10px" }}>
-                      <span style={{
-                        display: "inline-block", fontSize: "10px", fontWeight: 700,
-                        padding: "2px 7px", borderRadius: "4px", marginBottom: "4px",
-                        background: (photo.faceCount ?? 0) > 0 ? "#dbeafe" : "#f1f5f9",
-                        color:      (photo.faceCount ?? 0) > 0 ? "#1d4ed8"  : "#64748b",
-                      }}>
-                        {(photo.faceCount ?? 0) > 0 ? `👤 인물 사진` : "🖼️ 일반 사진"}
-                      </span>
-                      <p style={{
-                        margin: 0, fontWeight: 700, fontSize: "12px",
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      }}>
-                        {photo.fileName}
-                      </p>
-                      <p style={{ margin: "2px 0 0", color: "#94a3b8", fontSize: "11px" }}>
-                        {photo.captureDate || "날짜 없음"}
-                      </p>
-                      <div style={{ display: "flex", gap: "4px", marginTop: "6px" }}>
-                        <button
-                          onClick={(e) => handleToggleSaved(e, photo)}
-                          style={{
-                            flex: 1, border: "none", borderRadius: "6px",
-                            padding: "5px 0", fontSize: "11px", fontWeight: 700, cursor: "pointer",
-                            background: savedIds.has(photo.id) ? "#fef9c3" : "#f1f5f9",
-                            color:      savedIds.has(photo.id) ? "#854d0e" : "#64748b",
-                          }}
-                        >
-                          {savedIds.has(photo.id) ? "⭐" : "☆"}
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDownload(photo); }}
-                          style={{
-                            flex: 1, background: "#f1f5f9", border: "none", borderRadius: "6px",
-                            padding: "5px 0", fontSize: "11px", fontWeight: 700,
-                            color: "#334155", cursor: "pointer",
-                          }}
-                        >
-                          ↓
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(photo.id); }}
-                          style={{
-                            flex: 1, background: "#fee2e2", border: "none", borderRadius: "6px",
-                            padding: "5px 0", fontSize: "11px", fontWeight: 700,
-                            color: "#ef4444", cursor: "pointer",
-                          }}
-                        >
-                          삭제
-                        </button>
+                {/* Photo grid */}
+                <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {items.map((photo) => {
+                    const isPortrait = (photo.faceCount ?? 0) > 0;
+                    return (
+                      <div
+                        key={photo.id}
+                        onClick={() => setSelectedPhoto(photo)}
+                        className="photo-card rounded-xl overflow-hidden border border-slate-200 bg-slate-50 cursor-pointer"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={photo.imageUrl}
+                          alt={photo.fileName}
+                          className="w-full h-36 object-contain bg-slate-100"
+                        />
+                        <div className="p-2.5">
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1.5 ${
+                            isPortrait ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"
+                          }`}>
+                            {isPortrait ? <Users size={9} /> : <Image size={9} />}
+                            {isPortrait ? "인물" : "일반"}
+                          </span>
+                          <p className="font-bold text-slate-800 text-xs truncate">{photo.fileName}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+                            <CalendarDays size={9} />
+                            {photo.captureDate || "날짜 없음"}
+                          </p>
+                          <div className="flex gap-1.5 mt-2">
+                            <button
+                              onClick={(e) => handleToggleSaved(e, photo)}
+                              className={`flex-1 flex items-center justify-center py-1.5 rounded-lg text-[10px] font-bold transition-colors ${
+                                savedIds.has(photo.id)
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                              }`}
+                            >
+                              <Star size={11} className={savedIds.has(photo.id) ? "fill-amber-500" : ""} />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDownload(photo); }}
+                              className="flex-1 flex items-center justify-center py-1.5 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                            >
+                              <Download size={11} />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDelete(photo.id); }}
+                              className="flex-1 flex items-center justify-center py-1.5 rounded-lg text-[10px] font-bold bg-red-50 text-red-500 hover:bg-red-100 transition-colors"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
         )}
       </div>
 
@@ -337,7 +305,6 @@ export default function AlbumsPage() {
           onDownload={handleDownload}
         />
       )}
-
       <BottomNav />
     </main>
   );

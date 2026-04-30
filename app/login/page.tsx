@@ -2,16 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Globe, Eye, EyeOff, AlertCircle, LogIn, KeyRound } from "lucide-react";
 
-const DEMO_EMAIL = "demo@travellens.com";
+const DEMO_EMAIL    = "demo@travellens.com";
 const DEMO_PASSWORD = "travellens123";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [email,        setEmail]        = useState("");
+  const [password,     setPassword]     = useState("");
+  const [error,        setError]        = useState("");
+  const [loading,      setLoading]      = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
@@ -36,62 +37,25 @@ export default function LoginPage() {
   }
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #eff6ff 0%, #f8fafc 50%, #f0fdf4 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "24px",
-      }}
-    >
-      <div style={{ width: "100%", maxWidth: "420px" }}>
+    <main className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-blue-50 via-white to-emerald-50">
+      <div className="w-full max-w-md">
 
-        {/* Logo / Branding */}
-        <div style={{ textAlign: "center", marginBottom: "32px" }}>
-          <div
-            style={{
-              width: "64px",
-              height: "64px",
-              background: "#2563eb",
-              borderRadius: "18px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "30px",
-              margin: "0 auto 16px",
-              boxShadow: "0 8px 24px rgba(37,99,235,0.3)",
-            }}
-          >
-            🌍
+        {/* Branding */}
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-200">
+            <Globe size={32} className="text-white" />
           </div>
-          <h1 style={{ fontSize: "28px", fontWeight: 800, color: "#0f172a", margin: "0 0 6px" }}>
-            TravelLens
-          </h1>
-          <p style={{ color: "#64748b", fontSize: "15px", margin: 0 }}>
-            Sign in to your account
-          </p>
+          <h1 className="text-3xl font-extrabold text-slate-900 mb-1">TravelLens</h1>
+          <p className="text-slate-500 text-sm">Sign in to your account</p>
         </div>
 
         {/* Card */}
-        <div
-          style={{
-            background: "white",
-            borderRadius: "20px",
-            padding: "32px",
-            boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
-            border: "1px solid #e2e8f0",
-          }}
-        >
-          <form onSubmit={handleSubmit} noValidate>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl p-8">
+          <form onSubmit={handleSubmit} noValidate className="space-y-5">
 
             {/* Email */}
-            <div style={{ marginBottom: "18px" }}>
-              <label
-                htmlFor="email"
-                style={{ display: "block", fontWeight: 700, fontSize: "14px", color: "#334155", marginBottom: "8px" }}
-              >
+            <div>
+              <label htmlFor="email" className="block text-sm font-semibold text-slate-700 mb-2">
                 Email
               </label>
               <input
@@ -101,32 +65,16 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="demo@travellens.com"
                 autoComplete="email"
-                style={{
-                  width: "100%",
-                  padding: "11px 14px",
-                  borderRadius: "10px",
-                  border: "1.5px solid #cbd5e1",
-                  fontSize: "15px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                  color: "#0f172a",
-                  background: "#f8fafc",
-                  transition: "border-color 0.15s",
-                }}
-                onFocus={(e) => (e.target.style.borderColor = "#2563eb")}
-                onBlur={(e) => (e.target.style.borderColor = "#cbd5e1")}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all"
               />
             </div>
 
             {/* Password */}
-            <div style={{ marginBottom: "24px" }}>
-              <label
-                htmlFor="password"
-                style={{ display: "block", fontWeight: 700, fontSize: "14px", color: "#334155", marginBottom: "8px" }}
-              >
+            <div>
+              <label htmlFor="password" className="block text-sm font-semibold text-slate-700 mb-2">
                 Password
               </label>
-              <div style={{ position: "relative" }}>
+              <div className="relative">
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}
@@ -134,105 +82,56 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
                   autoComplete="current-password"
-                  style={{
-                    width: "100%",
-                    padding: "11px 44px 11px 14px",
-                    borderRadius: "10px",
-                    border: "1.5px solid #cbd5e1",
-                    fontSize: "15px",
-                    outline: "none",
-                    boxSizing: "border-box",
-                    color: "#0f172a",
-                    background: "#f8fafc",
-                    transition: "border-color 0.15s",
-                  }}
-                  onFocus={(e) => (e.target.style.borderColor = "#2563eb")}
-                  onBlur={(e) => (e.target.style.borderColor = "#cbd5e1")}
+                  className="w-full px-4 py-3 pr-12 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  style={{
-                    position: "absolute",
-                    right: "12px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: "16px",
-                    color: "#94a3b8",
-                    padding: "2px",
-                    lineHeight: 1,
-                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? "🙈" : "👁️"}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
-            {/* Error message */}
+            {/* Error */}
             {error && (
-              <div
-                style={{
-                  background: "#fef2f2",
-                  border: "1px solid #fecaca",
-                  borderRadius: "10px",
-                  padding: "12px 14px",
-                  marginBottom: "18px",
-                  color: "#dc2626",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                }}
-              >
-                ⚠️ {error}
+              <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm font-medium">
+                <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                {error}
               </div>
             )}
 
-            {/* Submit button */}
+            {/* Submit */}
             <button
               type="submit"
               disabled={loading}
-              style={{
-                width: "100%",
-                padding: "13px",
-                background: loading ? "#93c5fd" : "#2563eb",
-                color: "white",
-                border: "none",
-                borderRadius: "10px",
-                fontSize: "16px",
-                fontWeight: 700,
-                cursor: loading ? "not-allowed" : "pointer",
-                transition: "background 0.15s",
-                letterSpacing: "0.01em",
-              }}
+              className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-bold tracking-wide transition-all ${
+                loading
+                  ? "bg-blue-300 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 active:scale-[0.98]"
+              }`}
             >
+              <LogIn size={16} />
               {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
         </div>
 
-        {/* Demo credentials hint */}
-        <div
-          style={{
-            marginTop: "20px",
-            background: "#fffbeb",
-            border: "1px solid #fde68a",
-            borderRadius: "14px",
-            padding: "16px 18px",
-          }}
-        >
-          <p style={{ margin: "0 0 6px", fontWeight: 700, fontSize: "13px", color: "#92400e" }}>
-            🔑 Demo account
-          </p>
-          <p style={{ margin: 0, fontSize: "13px", color: "#78350f", lineHeight: 1.6 }}>
+        {/* Demo credentials */}
+        <div className="mt-4 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4">
+          <div className="flex items-center gap-2 mb-2">
+            <KeyRound size={15} className="text-amber-600" />
+            <p className="text-sm font-bold text-amber-800">Demo account</p>
+          </div>
+          <p className="text-sm text-amber-700 leading-relaxed">
             Email: <strong>demo@travellens.com</strong><br />
             Password: <strong>travellens123</strong>
           </p>
         </div>
 
-        <p style={{ textAlign: "center", marginTop: "20px", fontSize: "13px", color: "#94a3b8" }}>
+        <p className="text-center mt-5 text-xs text-slate-400">
           TravelLens · Photo Map &amp; Face Detection
         </p>
       </div>
