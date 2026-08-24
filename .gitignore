@@ -44,3 +44,7 @@ next-env.d.ts
 __pycache__/
 *.pyc
 *.pyo
+
+# backend runtime data (uploaded photos, not source)
+backend/uploads/*
+!backend/uploads/.gitkeep

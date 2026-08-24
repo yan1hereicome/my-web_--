@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+python-multipart
+exifread
+opencv-python-headless
+geopy
+numpy
+scikit-learn
+requests
+
+# InsightFace — primary (and, in this image, only) face detection/recognition/age/gender engine
+insightface
+onnxruntime
+
+# AI travel diary + landmark recognition (needs ANTHROPIC_API_KEY, see utils/claude_utils.py)
+anthropic
+python-dotenv

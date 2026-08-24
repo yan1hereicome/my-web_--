@@ -71,7 +71,7 @@ type PhotoInfo = {
   category: string;
 };
 
-const BACKEND_URL = "http://localhost:8000";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 function base64ToBlob(dataUrl: string): { blob: Blob; mimeType: string } {
   const [header, data] = dataUrl.split(",");
