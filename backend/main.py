@@ -78,6 +78,39 @@ def health():
     }
 
 
+@app.get("/debug/cv2")
+def debug_cv2():
+    """Temporary diagnostic endpoint — remove once utils_available is confirmed true."""
+    import subprocess
+    result: dict = {}
+
+    try:
+        import cv2
+        result["cv2_import"] = "ok"
+        result["cv2_version"] = cv2.__version__
+    except Exception as e:
+        result["cv2_import"] = "failed"
+        result["cv2_error"] = str(e)
+
+    try:
+        dpkg = subprocess.run(["dpkg", "-l"], capture_output=True, text=True, timeout=5)
+        result["xcb_related_packages"] = [
+            line for line in dpkg.stdout.splitlines() if "xcb" in line.lower()
+        ]
+    except Exception as e:
+        result["dpkg_error"] = str(e)
+
+    try:
+        ldconfig = subprocess.run(["ldconfig", "-p"], capture_output=True, text=True, timeout=5)
+        result["xcb_related_libs"] = [
+            line for line in ldconfig.stdout.splitlines() if "xcb" in line.lower()
+        ]
+    except Exception as e:
+        result["ldconfig_error"] = str(e)
+
+    return result
+
+
 @app.get("/nearby-places")
 def nearby_places(lat: float, lng: float, radius: int = 500):
     """Return restaurants, cafes, and bars near the given coordinates."""
