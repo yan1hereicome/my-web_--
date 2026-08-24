@@ -2,10 +2,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# opencv-python-headless and onnxruntime still need these at runtime
+# opencv-python-headless and onnxruntime still dynamically link against
+# a handful of X11/graphics shared libs even without GUI support
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgomp1 \
+    libxcb1 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements-docker.txt .
