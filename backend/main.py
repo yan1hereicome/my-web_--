@@ -19,6 +19,9 @@ try:
     from utils.exif_utils import extract_exif_info
     _UTILS_OK = True
 except Exception:
+    import traceback
+    print("[startup] utils.face_utils / utils.exif_utils failed to import:")
+    traceback.print_exc()
     _UTILS_OK = False
 
 try:
