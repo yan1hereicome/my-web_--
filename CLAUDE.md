@@ -80,7 +80,7 @@ Two execution modes depending on whether the Python backend is running:
 **Browser mode** (no backend): `app/page.tsx` uses face-api.js — tries SSD MobileNetV1 first (requires weights from `download-models.sh`), falls back to TinyFaceDetector. Returns 128-dim descriptors. No age/gender.
 
 **API mode** (backend alive): `app/page.tsx` POSTs to `/analyze`. The backend runs a two-tier pipeline in `backend/utils/face_utils.py`:
-- **Tier 1 (InsightFace buffalo_s)**: SCRFD detector at 1280×1280 with tiling for images larger than 1280px (1024px stride, 256px overlap). IoU-based NMS deduplicates tile boundaries. Returns 512-dim ArcFace (MobileFaceNet) embeddings + age + gender. Uses the small `buffalo_s` model pack with landmark modules disabled (not `buffalo_l`) to fit free-tier hosting's ~512MB RAM ceiling — see `backend/utils/face_utils.py` module docstring.
+- **Tier 1 (InsightFace buffalo_s)**: SCRFD detector at 640×640 with tiling for images larger than 640px (512px stride, 128px overlap). IoU-based NMS deduplicates tile boundaries. Returns 512-dim ArcFace (MobileFaceNet) embeddings + age + gender. Uses the small `buffalo_s` model pack with landmark modules disabled, and 640px tiles instead of the original 1280px (not `buffalo_l` / 1280px) to fit free-tier hosting's ~512MB RAM ceiling — see `backend/utils/face_utils.py` module docstring.
 - **Tier 2 (SSD+dlib fallback)**: Used only if InsightFace/onnxruntime is not installed. Returns 128-dim dlib descriptors, no age/gender.
 - EXIF Orientation is corrected before detection so portrait phone photos are upright.
 - Backend `/analyze` response includes `ages`, `genders`, `confidences` in addition to `faceBoxes` and `descriptors`.

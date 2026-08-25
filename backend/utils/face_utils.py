@@ -34,8 +34,10 @@ import numpy as np
 # ── Constants ─────────────────────────────────────────────────────────────────
 # Tiling: run the detector on overlapping windows so small faces in large photos
 # are seen at a reasonable resolution inside each tile.
-TILE_SIZE    = 1280          # px — detector input for each tile
-TILE_STRIDE  = 1024          # px — step between tiles (256 px overlap on each side)
+TILE_SIZE    = 640           # px — detector input for each tile
+                              # (was 1280; dropped for free-tier 512MB RAM —
+                              #  see face_utils.py module docstring)
+TILE_STRIDE  = 512           # px — step between tiles (128 px overlap on each side)
 MIN_FACE_PX  = 12            # minimum face box side (pixels) after merging
 NMS_IOU_THR  = 0.45          # IoU threshold for duplicate suppression after tiling
 
@@ -62,7 +64,6 @@ def _get_face_app():
             providers=["CPUExecutionProvider"],
             allowed_modules=["detection", "recognition", "genderage"],
         )
-        # 1280 instead of 640 — the single biggest accuracy win for small faces
         app.prepare(ctx_id=-1, det_size=(TILE_SIZE, TILE_SIZE))
         _face_app = app
         _insightface_ok = True

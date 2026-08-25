@@ -24,7 +24,7 @@ RUN pip install --no-cache-dir -r requirements-docker.txt
 RUN python -c "\
 from insightface.app import FaceAnalysis; \
 app = FaceAnalysis(name='buffalo_s', providers=['CPUExecutionProvider'], allowed_modules=['detection', 'recognition', 'genderage']); \
-app.prepare(ctx_id=-1, det_size=(1280, 1280)); \
+app.prepare(ctx_id=-1, det_size=(640, 640)); \
 print('buffalo_s cached OK')"
 
 COPY . .
