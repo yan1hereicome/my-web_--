@@ -4,17 +4,23 @@ face_utils.py
 
 Two-tier face analysis pipeline:
 
-  Tier 1 (primary)  — InsightFace buffalo_l
+  Tier 1 (primary)  — InsightFace buffalo_s
       • SCRFD detector at 1280×1280 (much higher accuracy than 640)
       • Tiling for images wider/taller than 1280 px (group shots, hi-res)
-      • ArcFace 512-dim embeddings for accurate person clustering
+      • ArcFace (MobileFaceNet) 512-dim embeddings for person clustering
       • Age + gender built-in
+      • buffalo_s (not buffalo_l) + detection/recognition/genderage only
+        (landmark modules skipped, unused downstream) — chosen to fit the
+        512MB RAM ceiling of free-tier hosting (Render free plan etc).
+        buffalo_l's ResNet50 recognition model alone was OOM-killing the
+        process there; buffalo_s trades some recognition accuracy for a
+        much smaller memory footprint.
 
   Tier 2 (fallback) — OpenCV SSD + dlib ResNet-34
       • Used when insightface / onnxruntime is not installed
 
-  First run: InsightFace downloads buffalo_l (~200 MB) to
-  ~/.insightface/models/buffalo_l/ automatically.
+  First run: InsightFace downloads buffalo_s (~30 MB) to
+  ~/.insightface/models/buffalo_s/ automatically.
 """
 
 from __future__ import annotations
@@ -49,12 +55,18 @@ def _get_face_app():
         return _face_app
     try:
         from insightface.app import FaceAnalysis
-        app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+        # buffalo_s (not buffalo_l) + landmark modules excluded — keeps memory
+        # low enough for free-tier hosting (512MB RAM). See module docstring.
+        app = FaceAnalysis(
+            name="buffalo_s",
+            providers=["CPUExecutionProvider"],
+            allowed_modules=["detection", "recognition", "genderage"],
+        )
         # 1280 instead of 640 — the single biggest accuracy win for small faces
         app.prepare(ctx_id=-1, det_size=(TILE_SIZE, TILE_SIZE))
         _face_app = app
         _insightface_ok = True
-        print("[face_utils] InsightFace buffalo_l 1280px loaded ✓")
+        print("[face_utils] InsightFace buffalo_s 1280px loaded ✓")
     except Exception as exc:
         _insightface_ok = False
         _face_app = None

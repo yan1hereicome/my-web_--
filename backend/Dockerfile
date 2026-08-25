@@ -17,13 +17,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements-docker.txt .
 RUN pip install --no-cache-dir -r requirements-docker.txt
 
-# Pre-download + cache the buffalo_l model at build time (~200MB) so the
-# first real request doesn't pay this cost and trip Render's proxy timeout.
+# Pre-download + cache the buffalo_s model at build time so the first real
+# request doesn't pay this cost and trip Render's proxy timeout. buffalo_s
+# (not buffalo_l) + landmark modules excluded keeps this fitting inside
+# free-tier hosting's 512MB RAM ceiling — see backend/utils/face_utils.py.
 RUN python -c "\
 from insightface.app import FaceAnalysis; \
-app = FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider']); \
+app = FaceAnalysis(name='buffalo_s', providers=['CPUExecutionProvider'], allowed_modules=['detection', 'recognition', 'genderage']); \
 app.prepare(ctx_id=-1, det_size=(1280, 1280)); \
-print('buffalo_l cached OK')"
+print('buffalo_s cached OK')"
 
 COPY . .
 
