@@ -32,20 +32,38 @@ export default function ResetPasswordPage() {
       }
     });
 
-    // The PASSWORD_RECOVERY event can fire before useEffect runs (Supabase processes
-    // the URL hash at client init time). Check the URL directly as a fallback.
-    // Implicit flow: #access_token=...&type=recovery
-    // PKCE flow:     ?code=...
+    // The PASSWORD_RECOVERY event above can fire before this useEffect subscribes
+    // (detectSessionInUrl: true in lib/supabase.ts makes the client parse the URL
+    // and exchange it automatically — for BOTH the implicit hash token and a PKCE
+    // `?code=` — as soon as the client initializes, which can happen as early as
+    // lib/supabase.ts being imported by AuthGuard higher up the tree). As a
+    // fallback, check whether a session already exists rather than re-processing
+    // the URL ourselves: a PKCE `code` is one-time-use, so calling
+    // exchangeCodeForSession here again — after the client's own automatic
+    // exchange already redeemed it — just fails against an already-consumed code
+    // and wrongly reports the (perfectly valid) link as expired.
     const hash   = new URLSearchParams(window.location.hash.slice(1));
     const search = new URLSearchParams(window.location.search);
-    const isRecovery =
-      (hash.get("type") === "recovery" && !!hash.get("access_token")) ||
-      !!search.get("code");
 
-    if (isRecovery) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setStage("form");
+    // A genuinely expired/used link redirects back here with ?error=... (e.g.
+    // error_code=otp_expired) instead of a code — no point waiting out the
+    // timeout for this case, Supabase already told us it's invalid.
+    if (search.get("error") || hash.get("error")) {
       clearTimeout(timeout);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStage("invalid");
+      return;
+    }
+
+    const hasRecoveryParams = hash.get("type") === "recovery" || !!search.get("code");
+
+    if (hasRecoveryParams) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          clearTimeout(timeout);
+          setStage((prev) => (prev === "waiting" ? "form" : prev));
+        }
+      });
     }
 
     return () => {

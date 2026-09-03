@@ -5,6 +5,7 @@ import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabase";
 import { MapPhoto } from "@/lib/types";
 import { getSavedIds, toggleSaved } from "@/lib/savedUtils";
+import { fetchMapPhotos } from "@/lib/photosApi";
 import { Star, Download, X, MapPin, BookmarkX } from "lucide-react";
 
 function InfoChip({ label, value }: { label: string; value: string }) {
@@ -63,7 +64,7 @@ export default function SavedPage() {
       const { data: { user } } = await supabase.auth.getUser();
       const uid = user?.id ?? "guest";
       const savedIds = await getSavedIds();
-      const allPhotos: MapPhoto[] = JSON.parse(localStorage.getItem(`map-${uid}`) ?? "[]");
+      const allPhotos = uid === "guest" ? [] : await fetchMapPhotos(uid);
       setSaved(allPhotos.filter((p) => savedIds.has(p.id)));
     }
     load();

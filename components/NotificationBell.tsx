@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Bell, BellRing, CheckCheck, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
@@ -9,17 +10,34 @@ import {
   markAllRead,
   subscribeToNotifications,
 } from "@/lib/notificationUtils";
+import { profilesByIds } from "@/lib/socialUtils";
 
 const TYPE_ICON: Record<string, string> = {
   share_viewed:       "👁️",
   collab_joined:      "🤝",
   collab_photo_added: "📸",
+  post_liked:         "❤️",
+  post_commented:     "💬",
+  tagged_in_post:     "🏷️",
+  comment_liked:      "❤️",
+  comment_replied:    "💬",
+};
+
+// Only these types carry a `from_user_id` (the person who acted) in their `data` —
+// share_viewed/collab_joined/collab_photo_added predate this and keep their static message.
+const ACTION_TEXT: Record<string, string> = {
+  post_liked:      "liked your post",
+  post_commented:  "commented on your post",
+  tagged_in_post:  "tagged you in a post",
+  comment_liked:   "liked your comment",
+  comment_replied: "replied to your comment",
 };
 
 export default function NotificationBell() {
   const [notes,  setNotes]  = useState<AppNotification[]>([]);
   const [open,   setOpen]   = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [actorNames, setActorNames] = useState<Record<string, string>>({});
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,6 +55,21 @@ export default function NotificationBell() {
     });
     return () => { supabase.removeChannel(channel); };
   }, [userId]);
+
+  // Resolves "who liked/commented/tagged you" — only fetches ids we don't already have a name for.
+  useEffect(() => {
+    const ids = [...new Set(
+      notes.map((n) => (n.data?.from_user_id as string) ?? null).filter((id): id is string => !!id),
+    )].filter((id) => !(id in actorNames));
+    if (ids.length === 0) return;
+    profilesByIds(ids).then((profiles) => {
+      setActorNames((prev) => {
+        const next = { ...prev };
+        for (const p of profiles) next[p.id] = p.name || "Traveler";
+        return next;
+      });
+    });
+  }, [notes, actorNames]);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -116,7 +149,26 @@ export default function NotificationBell() {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className={`text-xs leading-relaxed ${n.read ? "text-slate-500" : "text-slate-800 font-semibold"}`}>
-                      {n.message}
+                      {(() => {
+                        const fromUserId = (n.data?.from_user_id as string) ?? null;
+                        const postId = (n.data?.post_id as string) ?? null;
+                        const actionText = ACTION_TEXT[n.type];
+                        if (fromUserId && actionText) {
+                          return (
+                            <>
+                              <Link href={`/u/${fromUserId}`} onClick={() => setOpen(false)} className="font-bold hover:underline">
+                                {actorNames[fromUserId] ?? "Someone"}
+                              </Link>{" "}
+                              {postId ? (
+                                <Link href={`/post/${postId}`} onClick={() => setOpen(false)} className="hover:underline">
+                                  {actionText}
+                                </Link>
+                              ) : actionText}
+                            </>
+                          );
+                        }
+                        return n.message;
+                      })()}
                     </p>
                     <p className="text-[10px] text-slate-400 mt-0.5">
                       {new Date(n.created_at).toLocaleString()}

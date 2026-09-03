@@ -12,7 +12,10 @@ export type MapPhoto = {
   captureTimestamp?: string; // ISO 8601, for chronological sorting — captureDate/captureTime are locale-formatted display strings and aren't reliably sortable
   uploadedAt?: string;
   faceCount?: number;
-  image_path?: string; // storage path, used for deletion
+  landmarkName?: string | null;
+  landmarkConfidence?: string | null;
+  landmarkDescription?: string | null;
+  landmarkAnalyzedAt?: string; // presence means landmark recognition has already run — skip re-calling the API
 };
 
 export type FacePhoto = {
@@ -30,39 +33,40 @@ export type FacePhoto = {
   lat?: number;
   lng?: number;
   location?: string;
-  image_path?: string; // storage path, used for deletion
 };
 
+// Both converters read from the same `photos` table (public.photos) — a single
+// row can be a map photo, a face photo, or both, per its is_map_photo/is_face_photo
+// flags. image_url is the full public Storage URL, stored directly on the row
+// (not a path that needs a separate getPublicUrl() call).
+
 // Convert a Supabase photos row to MapPhoto
-export function rowToMapPhoto(
-  row: Record<string, unknown>,
-  publicUrl: string
-): MapPhoto {
+export function rowToMapPhoto(row: Record<string, unknown>): MapPhoto {
   return {
     id: row.id as string,
     fileName: row.file_name as string,
-    imageUrl: publicUrl,
-    lat: row.lat as number,
-    lng: row.lng as number,
+    imageUrl: row.image_url as string,
+    lat: (row.lat as number) ?? undefined,
+    lng: (row.lng as number) ?? undefined,
     location: (row.location as string) ?? undefined,
     captureDate: (row.capture_date as string) ?? undefined,
     captureTime: (row.capture_time as string) ?? undefined,
     captureTimestamp: (row.capture_timestamp as string) ?? undefined,
     uploadedAt: row.uploaded_at as string,
     faceCount: (row.face_count as number) ?? 0,
-    image_path: row.image_path as string,
+    landmarkName: (row.landmark_name as string) ?? undefined,
+    landmarkConfidence: (row.landmark_confidence as string) ?? undefined,
+    landmarkDescription: (row.landmark_description as string) ?? undefined,
+    landmarkAnalyzedAt: (row.landmark_analyzed_at as string) ?? undefined,
   };
 }
 
-// Convert a Supabase face_photos row to FacePhoto
-export function rowToFacePhoto(
-  row: Record<string, unknown>,
-  publicUrl: string
-): FacePhoto {
+// Convert a Supabase photos row to FacePhoto
+export function rowToFacePhoto(row: Record<string, unknown>): FacePhoto {
   return {
     id: row.id as string,
     fileName: row.file_name as string,
-    imageUrl: publicUrl,
+    imageUrl: row.image_url as string,
     faceCount: (row.face_count as number) ?? 0,
     uploadedAt: row.uploaded_at as string,
     boxes: (row.boxes as FacePhoto["boxes"]) ?? undefined,
@@ -74,6 +78,5 @@ export function rowToFacePhoto(
     lat: (row.lat as number) ?? undefined,
     lng: (row.lng as number) ?? undefined,
     location: (row.location as string) ?? undefined,
-    image_path: row.image_path as string,
   };
 }

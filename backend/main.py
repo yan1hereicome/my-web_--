@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 import os
 import uuid
 import shutil
@@ -13,6 +14,9 @@ try:
     load_dotenv()  # reads backend/.env (e.g. ANTHROPIC_API_KEY) into the environment
 except Exception:
     pass
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+logger = logging.getLogger("main")
 
 try:
     from utils.face_utils import detect_faces as ssd_detect_faces
@@ -182,7 +186,9 @@ class DiaryRequest(BaseModel):
 
 @app.post("/generate-diary")
 def generate_diary(body: DiaryRequest):
-    """AI-generated travel diary entry summarizing a set of photos (by metadata only)."""
+    """AI-generated travel diary entry summarizing a set of photos (by metadata only).
+    Called only when the user clicks "Generate" — the frontend caches the result in
+    Supabase (trip_diaries) so this endpoint isn't hit again for the same trip."""
     if not _CLAUDE_OK:
         return {"diary": None, "error": "anthropic package not installed — run: pip install -r requirements.txt"}
     if not os.environ.get("ANTHROPIC_API_KEY"):
@@ -191,12 +197,16 @@ def generate_diary(body: DiaryRequest):
         diary = generate_travel_diary([e.model_dump() for e in body.entries], language=body.language)
         return {"diary": diary}
     except Exception as e:
+        logger.error("/generate-diary error: %s", e)
         return {"diary": None, "error": str(e)}
 
 
 @app.post("/recognize-landmark")
 async def recognize_landmark_endpoint(file: UploadFile = File(...), lat: float | None = None, lng: float | None = None):
-    """AI landmark recognition for a single photo, via Claude Vision."""
+    """AI landmark recognition for a single photo, via Claude Vision.
+    Called only when the user clicks "Identify Landmark" / "Re-analyze" — the frontend
+    caches the result on the photo row (photos.landmark_*) so this isn't re-hit for a
+    photo that's already been analyzed."""
     if not _CLAUDE_OK:
         return {"landmark": None, "error": "anthropic package not installed — run: pip install -r requirements.txt"}
     if not os.environ.get("ANTHROPIC_API_KEY"):
@@ -206,6 +216,7 @@ async def recognize_landmark_endpoint(file: UploadFile = File(...), lat: float |
         result = recognize_landmark(image_bytes, file.content_type or "image/jpeg", lat, lng)
         return result.model_dump()
     except Exception as e:
+        logger.error("/recognize-landmark error: %s", e)
         return {"landmark": None, "error": str(e)}
 
 

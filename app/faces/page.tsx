@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabase";
 import { FacePhoto } from "@/lib/types";
+import { fetchFacePhotos } from "@/lib/photosApi";
 import { deletePhotoEverywhere } from "@/lib/savedUtils";
 import { useRouter } from "next/navigation";
 import {
@@ -332,7 +333,7 @@ export default function FacesPage() {
       const u = user?.id ?? "guest";
       setUid(u);
 
-      const rawFaces: FacePhoto[] = JSON.parse(localStorage.getItem(`faces-${u}`) ?? "[]");
+      const faces = u === "guest" ? [] : await fetchFacePhotos(u);
 
       const rawLabels: Record<string, string> = JSON.parse(localStorage.getItem(`face-labels-${u}`) ?? "{}");
       // Discard labels stored in old pX format (cluster IDs are now photoId_boxIndex)
@@ -340,7 +341,7 @@ export default function FacesPage() {
         Object.entries(rawLabels).filter(([k]) => !k.match(/^p\d+$/))
       );
       setCustomLabels(validLabels);
-      setStoredPhotos(rawFaces);
+      setStoredPhotos(faces);
       setLoading(false);
     }
     load();
@@ -352,7 +353,8 @@ export default function FacesPage() {
   }, [customLabels, uid]);
 
   async function handleDelete(id: string) {
-    await deletePhotoEverywhere(id);
+    const fileName = storedPhotos.find((p) => p.id === id)?.fileName;
+    await deletePhotoEverywhere(id, fileName);
     setStoredPhotos((prev) => prev.filter((p) => p.id !== id));
     setConfirmDeleteId(null);
   }
@@ -360,9 +362,8 @@ export default function FacesPage() {
   async function handleClearAll() {
     if (!uid) return;
     for (const p of storedPhotos) {
-      await deletePhotoEverywhere(p.id);
+      await deletePhotoEverywhere(p.id, p.fileName);
     }
-    localStorage.removeItem(`faces-${uid}`);
     localStorage.removeItem(`face-labels-${uid}`);
     setStoredPhotos([]);
     setCustomLabels({});

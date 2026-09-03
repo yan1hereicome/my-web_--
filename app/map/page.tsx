@@ -9,6 +9,8 @@ import { MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabase";
 import { MapPhoto } from "@/lib/types";
+import { fetchMapPhotos } from "@/lib/photosApi";
+import { deletePhotoEverywhere } from "@/lib/savedUtils";
 import { MapPin, ArrowLeft, Trash2, X, CalendarDays, ChevronLeft, ChevronRight, Share2, Loader2, Route, Flame } from "lucide-react";
 import { sharePhoto } from "@/lib/shareUtils";
 
@@ -232,7 +234,7 @@ export default function MapPage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       const uid = user?.id ?? "guest";
-      const stored: MapPhoto[] = JSON.parse(localStorage.getItem(`map-${uid}`) ?? "[]");
+      const stored = uid === "guest" ? [] : await fetchMapPhotos(uid);
       setPhotos(stored.filter((p) => p.lat != null && p.lng != null));
     }
     load();
@@ -273,7 +275,11 @@ export default function MapPage() {
   async function handleClear() {
     const { data: { user } } = await supabase.auth.getUser();
     const uid = user?.id ?? "guest";
-    localStorage.removeItem(`map-${uid}`);
+    if (uid !== "guest") {
+      for (const p of photos) {
+        await deletePhotoEverywhere(p.id, p.fileName);
+      }
+    }
     setPhotos([]);
     setActiveCluster(null);
     setShowDeleteConfirm(false);

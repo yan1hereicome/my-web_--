@@ -4,10 +4,126 @@ import { useEffect, useState } from "react";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabase";
 import { MapPhoto, FacePhoto } from "@/lib/types";
+import { fetchAllPhotos } from "@/lib/photosApi";
+import { getSavedIds } from "@/lib/savedUtils";
 import {
   BarChart2, Camera, Users, MapPin, Star,
-  TrendingUp, Image as ImageIcon, CalendarDays, Clock,
+  TrendingUp, Image as ImageIcon, CalendarDays, Clock, LayoutTemplate,
 } from "lucide-react";
+import ShareCardModal from "@/components/ShareCardModal";
+import { loadImage, drawImageCover, fillTextTracked, drawRouteDivider } from "@/lib/canvasCard";
+
+// Draws the 1080x1920 "Year in Review" share card: a dimmed cover photo behind
+// a headline number (total photos) and a short stat panel — Spotify-Wrapped-style
+// summary of the year's travel activity. Dashed dividers echo the app's own
+// map route line; the hero number gets a blue-to-violet gradient to match.
+async function drawYearReviewCard(ctx: CanvasRenderingContext2D, w: number, h: number, stats: Stats, year: number) {
+  const margin = 90;
+  const dividerColor = "rgba(255,255,255,0.18)";
+
+  ctx.fillStyle = "#0B1220";
+  ctx.fillRect(0, 0, w, h);
+
+  const coverPhoto = stats.recentPhotos[0];
+  if (coverPhoto?.imageUrl) {
+    try {
+      const img = await loadImage(coverPhoto.imageUrl);
+      ctx.globalAlpha = 0.28;
+      drawImageCover(ctx, img, 0, 0, w, h);
+      ctx.globalAlpha = 1;
+    } catch {
+      // no cover photo available (e.g. CORS) — solid background above still holds
+    }
+  }
+
+  const overlay = ctx.createLinearGradient(0, 0, 0, h);
+  overlay.addColorStop(0, "rgba(11,18,32,0.65)");
+  overlay.addColorStop(0.4, "rgba(11,18,32,0.85)");
+  overlay.addColorStop(1, "rgba(6,10,20,0.97)");
+  ctx.fillStyle = overlay;
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.textAlign = "center";
+
+  ctx.fillStyle = "#93C5FD";
+  ctx.font = "700 32px system-ui, -apple-system, sans-serif";
+  fillTextTracked(ctx, "✈ TRAVELRIES", w / 2, 140, 6);
+
+  drawRouteDivider(ctx, 190, w, margin, dividerColor);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "800 128px system-ui, -apple-system, sans-serif";
+  ctx.fillText(String(year), w / 2, 350);
+  ctx.font = "700 50px system-ui, -apple-system, sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.75)";
+  ctx.fillText("Year in Review", w / 2, 420);
+
+  drawRouteDivider(ctx, 480, w, margin, dividerColor);
+
+  const countText = String(stats.totalPhotos);
+  const bigFontSize = countText.length <= 2 ? 260 : countText.length === 3 ? 220 : countText.length === 4 ? 170 : 130;
+  const heroGradient = ctx.createLinearGradient(w / 2 - 320, 0, w / 2 + 320, 0);
+  heroGradient.addColorStop(0, "#93C5FD");
+  heroGradient.addColorStop(1, "#C4B5FD");
+  ctx.fillStyle = heroGradient;
+  ctx.font = `900 ${bigFontSize}px system-ui, -apple-system, sans-serif`;
+  ctx.fillText(countText, w / 2, 780);
+  ctx.font = "600 40px system-ui, -apple-system, sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.fillText("photos captured", w / 2, 850);
+
+  drawRouteDivider(ctx, 930, w, margin, dividerColor);
+
+  const rows: { label: string; value: string }[] = [
+    { label: "Places visited", value: String(stats.totalLocations) },
+    { label: "Faces detected", value: String(stats.totalFacesDetected) },
+    { label: "Top destination", value: stats.topLocations[0]?.name ?? "—" },
+  ];
+  const rowHeight = 140;
+  const panelTop = 1000;
+  const panelPadX = 40;
+  const panelHeight = 48 + rows.length * rowHeight;
+
+  ctx.fillStyle = "rgba(255,255,255,0.06)";
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(margin, panelTop, w - margin * 2, panelHeight, 28);
+  ctx.fill();
+  ctx.stroke();
+
+  rows.forEach((row, i) => {
+    const rowTop = panelTop + 48 + i * rowHeight;
+    const baseline = rowTop + 42;
+
+    ctx.textAlign = "left";
+    ctx.font = "600 34px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.fillText(row.label, margin + panelPadX, baseline);
+
+    ctx.textAlign = "right";
+    ctx.font = "800 42px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = "#ffffff";
+    let value = row.value;
+    while (ctx.measureText(value).width > 420 && value.length > 1) {
+      value = value.slice(0, -2) + "…";
+    }
+    ctx.fillText(value, w - margin - panelPadX, baseline);
+
+    if (i < rows.length - 1) {
+      ctx.strokeStyle = "rgba(255,255,255,0.1)";
+      ctx.beginPath();
+      ctx.moveTo(margin + panelPadX, rowTop + rowHeight - 20);
+      ctx.lineTo(w - margin - panelPadX, rowTop + rowHeight - 20);
+      ctx.stroke();
+    }
+  });
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.font = "700 34px system-ui, -apple-system, sans-serif";
+  fillTextTracked(ctx, "✈ TRAVELRIES", w / 2, h - 110, 5);
+}
 
 type Stats = {
   totalPhotos: number;
@@ -106,15 +222,16 @@ function DonutChart({ portrait, scenery, total }: { portrait: number; scenery: n
 
 export default function StatsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [showYearCard, setShowYearCard] = useState(false);
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       const uid = user?.id ?? "guest";
 
-      const mapPhotos: MapPhoto[] = JSON.parse(localStorage.getItem(`map-${uid}`) ?? "[]");
-      const facePhotos: FacePhoto[] = JSON.parse(localStorage.getItem(`faces-${uid}`) ?? "[]");
-      const savedIds: string[] = JSON.parse(localStorage.getItem(`saved-${uid}`) ?? "[]");
+      const { mapPhotos, facePhotos }: { mapPhotos: MapPhoto[]; facePhotos: FacePhoto[] } =
+        uid === "guest" ? { mapPhotos: [], facePhotos: [] } : await fetchAllPhotos(uid);
+      const savedIds = Array.from(await getSavedIds());
 
       const portraitCount = mapPhotos.filter((p) => (p.faceCount ?? 0) > 0).length;
       const generalCount  = mapPhotos.filter((p) => (p.faceCount ?? 0) === 0).length;
@@ -207,10 +324,14 @@ export default function StatsPage() {
           <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-md shadow-blue-200">
             <BarChart2 size={22} className="text-white" />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Statistics</h1>
             <p className="text-slate-500 text-sm">Summary of your photo activity</p>
           </div>
+          <button onClick={() => setShowYearCard(true)}
+            className="flex items-center gap-1.5 bg-violet-500 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-violet-600 transition-colors shadow-md shadow-violet-200 flex-shrink-0">
+            <LayoutTemplate size={16} /> Year in Review
+          </button>
         </div>
 
         {/* Stat cards */}
@@ -322,6 +443,14 @@ export default function StatsPage() {
         </section>
 
       </div>
+      {showYearCard && (
+        <ShareCardModal
+          title="Year in Review"
+          fileName="travelries-year-in-review.png"
+          onClose={() => setShowYearCard(false)}
+          draw={(ctx, w, h) => drawYearReviewCard(ctx, w, h, stats, new Date().getFullYear())}
+        />
+      )}
       <BottomNav />
     </main>
   );

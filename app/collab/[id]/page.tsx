@@ -6,6 +6,7 @@ import Link from "next/link";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabase";
 import { MapPhoto } from "@/lib/types";
+import { fetchMapPhotos } from "@/lib/photosApi";
 import {
   getAlbum, getAlbumMembers, getAlbumPhotos,
   addPhotoToAlbum, removePhotoFromAlbum,
@@ -126,8 +127,10 @@ function PhotoPicker({
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       const uid = user?.id ?? "guest";
-      const stored: MapPhoto[] = JSON.parse(localStorage.getItem(`map-${uid}`) ?? "[]");
-      setLocalPhotos(stored);
+      // Same source Albums reads from (is_map_photo rows in Supabase) — a stale
+      // pre-Supabase localStorage array was used here before, which showed photos
+      // that no longer existed (or hid ones that did) versus what Albums showed.
+      setLocalPhotos(uid === "guest" ? [] : await fetchMapPhotos(uid));
     }
     load();
   }, []);

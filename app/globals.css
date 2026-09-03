@@ -25,6 +25,15 @@ body {
   border-radius: 999px;
 }
 
+/* Hides the scrollbar on an intentionally horizontal-scroll strip (e.g. BottomNav
+   once it has more items than fit) while keeping the element scrollable. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Range input accent */
 input[type="range"] {
   accent-color: #2563eb;

@@ -5,14 +5,96 @@ import BottomNav from "@/components/BottomNav";
 import { toggleSaved, getSavedIds, deletePhotoEverywhere } from "@/lib/savedUtils";
 import { supabase } from "@/lib/supabase";
 import { MapPhoto } from "@/lib/types";
+import { fetchMapPhotos, saveLandmarkResult, fetchTripDiary, saveTripDiary } from "@/lib/photosApi";
 import {
   Images, Users, Image as ImageIcon, Star, Download, Trash2,
-  X, CalendarDays, SlidersHorizontal, Search, Calendar, Share2, Loader2, MapPin,
+  X, CalendarDays, SlidersHorizontal, Search, Calendar, Share2, Loader2, MapPin, Sparkles, LayoutTemplate,
 } from "lucide-react";
 import { sharePhoto } from "@/lib/shareUtils";
+import ShareCardModal from "@/components/ShareCardModal";
+import { loadImage, drawImageCover } from "@/lib/canvasCard";
+
+// Draws a 1080x1920 Instagram-story-style card for a single photo: the photo
+// itself (cropped to a rounded frame), its location/date beneath it, and a
+// small Travelries watermark — used by the "Story" button in PhotoModal.
+async function drawPhotoStoryCard(ctx: CanvasRenderingContext2D, w: number, h: number, photo: MapPhoto) {
+  const bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, "#0B1220");
+  bg.addColorStop(1, "#1E293B");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+
+  const margin = 56;
+  const photoTop = 130;
+  const photoH = h * 0.6;
+  const photoW = w - margin * 2;
+
+  const img = await loadImage(photo.imageUrl);
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(margin, photoTop, photoW, photoH, 36);
+  ctx.clip();
+  drawImageCover(ctx, img, margin, photoTop, photoW, photoH);
+  ctx.restore();
+
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(margin, photoTop, photoW, photoH, 36);
+  ctx.stroke();
+
+  let y = photoTop + photoH + 100;
+  ctx.textAlign = "left";
+
+  const loc = photo.location?.split(",")[0]?.trim();
+  if (loc) {
+    ctx.fillStyle = "#93C5FD";
+    ctx.font = "600 36px system-ui, -apple-system, sans-serif";
+    ctx.fillText(`📍 ${loc}`, margin, y);
+    y += 64;
+  }
+
+  const dateLabel = photo.captureDate && photo.captureDate !== "Not available" && photo.captureDate !== "날짜 없음"
+    ? photo.captureDate
+    : (photo.uploadedAt?.slice(0, 10) ?? "");
+  if (dateLabel) {
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "800 52px system-ui, -apple-system, sans-serif";
+    ctx.fillText(dateLabel, margin, y);
+  }
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
+  ctx.font = "700 36px system-ui, -apple-system, sans-serif";
+  ctx.fillText("✈ Travelries", w / 2, h - 80);
+}
 
 type Filter    = "All" | "With People" | "Scenery";
 type DateRange = "all" | "week" | "month" | "year";
+
+const BACKEND_URL = "http://localhost:8000";
+
+// Downscale before sending to Claude — cuts image tokens (and cost) with no
+// meaningful loss for landmark recognition. Server also enforces this as a backstop.
+async function resizeImageForApi(blob: Blob, maxSize = 1024, quality = 0.85): Promise<Blob> {
+  const bitmap = await createImageBitmap(blob);
+  const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return blob;
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  const resized = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+  return resized ?? blob;
+}
+
+// Stable cache key for a trip's diary — the trip grouping itself is recomputed
+// client-side from the currently filtered photo list, so trip.id (an array index)
+// isn't safe to persist against. The sorted photo-id set is.
+function tripKeyOf(trip: Trip): string {
+  return trip.photos.map((p) => p.id).sort().join(",");
+}
 
 type Trip = {
   id: string;
@@ -190,13 +272,110 @@ function ShareLinkModal({ url, onClose }: { url: string; onClose: () => void }) 
   );
 }
 
+function DiaryModal({
+  tripName, loading, diary, error, cached, onClose, onRegenerate,
+}: {
+  tripName: string; loading: boolean; diary: string | null; error: string | null; cached: boolean;
+  onClose: () => void; onRegenerate: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/60 z-[3000] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-5 max-w-[440px] w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Sparkles size={18} className="text-blue-500" />
+            <p className="font-bold text-slate-900">{tripName}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1"><X size={18} /></button>
+        </div>
+        {loading && (
+          <div className="flex items-center gap-2 text-slate-400 text-sm py-6 justify-center">
+            <Loader2 size={16} className="animate-spin" /> Writing your diary...
+          </div>
+        )}
+        {!loading && error && (
+          <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">{error}</p>
+        )}
+        {!loading && diary && (
+          <>
+            <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{diary}</p>
+            {cached && <p className="text-[11px] text-slate-400 mt-2">Saved earlier — no new API call.</p>}
+            <button onClick={onRegenerate}
+              className="mt-3 flex items-center gap-1.5 text-xs font-bold text-blue-500 hover:text-blue-700 transition-colors">
+              <Sparkles size={12} /> Re-generate
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PhotoModal({
-  photo, onClose, onDelete, onDownload, onShare, sharing,
+  photo, onClose, onDelete, onDownload, onShare, sharing, uid, onLandmarkSaved,
 }: {
   photo: MapPhoto; onClose: () => void;
   onDelete: (id: string) => void; onDownload: (photo: MapPhoto) => void;
   onShare: (photo: MapPhoto) => void; sharing: boolean;
+  uid: string | null;
+  onLandmarkSaved: (photoId: string, result: { landmarkName: string | null; landmarkConfidence: string | null; landmarkDescription: string | null }) => void;
 }) {
+  const alreadyAnalyzed = !!photo.landmarkAnalyzedAt;
+  const [landmarkLoading, setLandmarkLoading] = useState(false);
+  const [landmarkResult,  setLandmarkResult]  = useState<{ landmark: string | null; description: string | null } | null>(
+    alreadyAnalyzed ? { landmark: photo.landmarkName ?? null, description: photo.landmarkDescription ?? null } : null,
+  );
+  const [landmarkError,   setLandmarkError]   = useState<string | null>(null);
+  const [isReanalyzing,   setIsReanalyzing]   = useState(false);
+  const [showStoryCard,   setShowStoryCard]   = useState(false);
+
+  // A photo already carries its cached landmark_* fields from Supabase — this only
+  // resets local state when the modal is reopened on a *different* photo, not on every
+  // prop change (a fresh analysis already updates local state directly, see above).
+  useEffect(() => {
+    setLandmarkResult(photo.landmarkAnalyzedAt
+      ? { landmark: photo.landmarkName ?? null, description: photo.landmarkDescription ?? null }
+      : null);
+    setLandmarkError(null);
+    setIsReanalyzing(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photo.id]);
+
+  async function handleRecognizeLandmark() {
+    setLandmarkLoading(true);
+    setLandmarkError(null);
+    try {
+      const imgRes = await fetch(photo.imageUrl);
+      const rawBlob = await imgRes.blob();
+      const resizedBlob = await resizeImageForApi(rawBlob);
+      const form = new FormData();
+      form.append("file", resizedBlob, photo.fileName || "photo.jpg");
+      const qs = photo.lat != null && photo.lng != null ? `?lat=${photo.lat}&lng=${photo.lng}` : "";
+      const res = await fetch(`${BACKEND_URL}/recognize-landmark${qs}`, { method: "POST", body: form });
+      const data = await res.json();
+      if (data.error) {
+        setLandmarkError(data.error);
+        return;
+      }
+      const result = { landmark: data.landmark ?? null, description: data.description ?? null };
+      setLandmarkResult(result);
+      if (uid) {
+        const saved = {
+          landmarkName: result.landmark,
+          landmarkConfidence: data.confidence ?? null,
+          landmarkDescription: result.description,
+        };
+        await saveLandmarkResult(uid, photo.id, saved);
+        onLandmarkSaved(photo.id, saved);
+      }
+    } catch {
+      setLandmarkError("백엔드 서버에 연결할 수 없어요.");
+    } finally {
+      setLandmarkLoading(false);
+      setIsReanalyzing(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/85 z-[2000] flex items-center justify-center p-5" onClick={onClose}>
       <div className="max-w-[520px] w-full bg-white rounded-2xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -217,12 +396,47 @@ function PhotoModal({
           {photo.captureDate && photo.captureDate !== "Not available" && <InfoChip label="Taken" value={photo.captureDate} />}
           {photo.location && <div className="col-span-2"><InfoChip label="Location" value={photo.location} /></div>}
           <InfoChip label="AI label" value={(photo.faceCount ?? 0) > 0 ? `With people (${photo.faceCount})` : "Scenery"} />
+          {!landmarkResult && (
+            <button onClick={handleRecognizeLandmark} disabled={landmarkLoading}
+              className="flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-blue-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors disabled:opacity-60">
+              {landmarkLoading
+                ? <><Loader2 size={12} className="animate-spin" /> Checking...</>
+                : <><Sparkles size={12} /> {landmarkError ? "Retry" : "Identify Landmark"}</>
+              }
+            </button>
+          )}
+          {!landmarkResult && landmarkError && <div className="col-span-2"><InfoChip label="Landmark" value={landmarkError} /></div>}
+          {landmarkResult && (
+            <div className="col-span-2 space-y-1.5">
+              <InfoChip
+                label="Landmark"
+                value={landmarkResult.landmark
+                  ? `${landmarkResult.landmark}${landmarkResult.description ? ` — ${landmarkResult.description}` : ""}`
+                  : "No landmark recognized"}
+              />
+              <button
+                onClick={() => { setIsReanalyzing(true); handleRecognizeLandmark(); }}
+                disabled={landmarkLoading}
+                className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 hover:text-blue-600 transition-colors disabled:opacity-60">
+                {isReanalyzing && landmarkLoading
+                  ? <><Loader2 size={10} className="animate-spin" /> Re-analyzing...</>
+                  : <><Sparkles size={10} /> Re-analyze</>
+                }
+              </button>
+            </div>
+          )}
         </div>
-        <div className="flex gap-2 px-4 py-3 border-t border-slate-100">
+        <div className="flex gap-2 px-4 pt-3 border-t border-slate-100">
+          <button onClick={() => setShowStoryCard(true)}
+            className="flex-1 flex items-center justify-center gap-2 bg-violet-500 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-violet-600 transition-colors">
+            <LayoutTemplate size={15} /> Story
+          </button>
           <button onClick={() => onShare(photo)} disabled={sharing}
             className="flex-1 flex items-center justify-center gap-2 bg-blue-500 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-blue-600 transition-colors disabled:opacity-60">
             {sharing ? <Loader2 size={15} className="animate-spin" /> : <Share2 size={15} />} Share
           </button>
+        </div>
+        <div className="flex gap-2 px-4 pt-2 pb-3">
           <button onClick={() => onDownload(photo)}
             className="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-slate-700 transition-colors">
             <Download size={15} /> Download
@@ -233,6 +447,14 @@ function PhotoModal({
           </button>
         </div>
       </div>
+      {showStoryCard && (
+        <ShareCardModal
+          title="Story Card"
+          fileName={`travelries-${photo.id}.png`}
+          onClose={() => setShowStoryCard(false)}
+          draw={(ctx, w, h) => drawPhotoStoryCard(ctx, w, h, photo)}
+        />
+      )}
     </div>
   );
 }
@@ -320,12 +542,63 @@ export default function AlbumsPage() {
   const [personFilterLabel, setPersonFilterLabel] = useState<string | null>(null);
   const [viewMode,          setViewMode]          = useState<"monthly" | "trips">("monthly");
   const [expandedTripId,    setExpandedTripId]    = useState<string | null>(null);
+  const [diaryTrip,         setDiaryTrip]         = useState<Trip | null>(null);
+  const [diaryLoading,      setDiaryLoading]      = useState(false);
+  const [diaryText,         setDiaryText]         = useState<string | null>(null);
+  const [diaryError,        setDiaryError]        = useState<string | null>(null);
+  const [diaryCached,       setDiaryCached]       = useState(false);
+  const [uid,               setUid]               = useState<string | null>(null);
+
+  async function handleGenerateDiary(trip: Trip, forceRegenerate = false) {
+    setDiaryTrip(trip);
+    setDiaryLoading(true);
+    setDiaryText(null);
+    setDiaryError(null);
+    setDiaryCached(false);
+    const key = tripKeyOf(trip);
+    try {
+      if (!forceRegenerate && uid) {
+        const cached = await fetchTripDiary(uid, key);
+        if (cached) {
+          setDiaryText(cached);
+          setDiaryCached(true);
+          return; // cache hit — no Claude call
+        }
+      }
+      const res = await fetch(`${BACKEND_URL}/generate-diary`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          language: "ko",
+          entries: trip.photos.map((p) => ({
+            fileName: p.fileName,
+            location: p.location,
+            captureDate: p.captureDate,
+            captureTime: p.captureTime,
+            faceCount: p.faceCount ?? 0,
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (data.diary) {
+        setDiaryText(data.diary);
+        if (uid) await saveTripDiary(uid, key, data.diary, "ko");
+      } else {
+        setDiaryError(data.error ?? "일기를 만들지 못했어요. 잠시 후 다시 시도해주세요.");
+      }
+    } catch {
+      setDiaryError("백엔드 서버에 연결할 수 없어요 (uvicorn이 꺼져있을 수 있어요).");
+    } finally {
+      setDiaryLoading(false);
+    }
+  }
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
-      const uid = user?.id ?? "guest";
-      const stored: MapPhoto[] = JSON.parse(localStorage.getItem(`map-${uid}`) ?? "[]");
+      const resolvedUid = user?.id ?? "guest";
+      setUid(resolvedUid === "guest" ? null : resolvedUid);
+      const stored = resolvedUid === "guest" ? [] : await fetchMapPhotos(resolvedUid);
       setPhotos(stored);
       setSavedIds(await getSavedIds());
       setLoading(false);
@@ -339,6 +612,18 @@ export default function AlbumsPage() {
     load();
   }, []);
 
+  function handleLandmarkSaved(
+    photoId: string,
+    result: { landmarkName: string | null; landmarkConfidence: string | null; landmarkDescription: string | null },
+  ) {
+    setPhotos((prev) => prev.map((p) => p.id === photoId
+      ? { ...p, landmarkName: result.landmarkName ?? undefined, landmarkConfidence: result.landmarkConfidence ?? undefined, landmarkDescription: result.landmarkDescription ?? undefined, landmarkAnalyzedAt: new Date().toISOString() }
+      : p));
+    setSelectedPhoto((prev) => prev && prev.id === photoId
+      ? { ...prev, landmarkName: result.landmarkName ?? undefined, landmarkConfidence: result.landmarkConfidence ?? undefined, landmarkDescription: result.landmarkDescription ?? undefined, landmarkAnalyzedAt: new Date().toISOString() }
+      : prev);
+  }
+
   async function handleToggleSaved(e: React.MouseEvent, photo: MapPhoto) {
     e.stopPropagation();
     const nowSaved = await toggleSaved(photo.id);
@@ -350,7 +635,8 @@ export default function AlbumsPage() {
   }
 
   async function handleDelete(id: string) {
-    await deletePhotoEverywhere(id);
+    const fileName = photos.find((p) => p.id === id)?.fileName;
+    await deletePhotoEverywhere(id, fileName);
     setPhotos((prev) => prev.filter((p) => p.id !== id));
     setConfirmDeleteId(null);
   }
@@ -639,15 +925,22 @@ export default function AlbumsPage() {
                     </div>
                   </div>
 
-                  {/* ── View all toggle ── */}
-                  <button
-                    onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}
-                    className="w-full flex items-center justify-center gap-1.5 text-sm font-bold text-blue-500 hover:text-blue-700 hover:bg-blue-50 py-3 transition-colors">
-                    {isExpanded
-                      ? <><span className="text-xs">▲</span> Hide</>
-                      : <><span className="text-xs">▼</span> View all {n} {photoWord}</>
-                    }
-                  </button>
+                  {/* ── View all / AI diary ── */}
+                  <div className="flex divide-x divide-slate-100 border-t border-slate-100">
+                    <button
+                      onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}
+                      className="flex-1 flex items-center justify-center gap-1.5 text-sm font-bold text-blue-500 hover:text-blue-700 hover:bg-blue-50 py-3 transition-colors">
+                      {isExpanded
+                        ? <><span className="text-xs">▲</span> Hide</>
+                        : <><span className="text-xs">▼</span> View all {n} {photoWord}</>
+                      }
+                    </button>
+                    <button
+                      onClick={() => handleGenerateDiary(trip)}
+                      className="flex-1 flex items-center justify-center gap-1.5 text-sm font-bold text-slate-500 hover:text-blue-600 hover:bg-blue-50 py-3 transition-colors">
+                      <Sparkles size={14} /> AI Diary
+                    </button>
+                  </div>
 
                   {/* ── Expanded grid ── */}
                   {isExpanded && (
@@ -748,6 +1041,8 @@ export default function AlbumsPage() {
           onDownload={handleDownload}
           onShare={handleShare}
           sharing={sharingId === selectedPhoto.id}
+          uid={uid}
+          onLandmarkSaved={handleLandmarkSaved}
         />
       )}
       {confirmDeleteId && (
@@ -757,6 +1052,17 @@ export default function AlbumsPage() {
         />
       )}
       {shareResultUrl && <ShareLinkModal url={shareResultUrl} onClose={() => setShareResultUrl(null)} />}
+      {diaryTrip && (
+        <DiaryModal
+          tripName={diaryTrip.name}
+          loading={diaryLoading}
+          diary={diaryText}
+          error={diaryError}
+          cached={diaryCached}
+          onClose={() => setDiaryTrip(null)}
+          onRegenerate={() => handleGenerateDiary(diaryTrip, true)}
+        />
+      )}
       <BottomNav />
     </main>
   );

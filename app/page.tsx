@@ -6,6 +6,7 @@ import * as faceapi from "face-api.js";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabase";
 import { MapPhoto } from "@/lib/types";
+import { fetchMapPhotos, fetchFacePhotos, upsertPhoto, renamePhoto } from "@/lib/photosApi";
 import {
   Camera, Upload, MapPin, Users, CalendarDays, Clock,
   FileImage, Ruler, CheckCircle2, Loader2, AlertTriangle,
@@ -329,8 +330,8 @@ export default function HomePage() {
   async function refreshStats() {
     const { data: { user } } = await supabase.auth.getUser();
     const uid = user?.id ?? "guest";
-    const mapPhotos: MapPhoto[] = JSON.parse(localStorage.getItem(`map-${uid}`) ?? "[]");
-    const facePhotos: FacePhoto[] = JSON.parse(localStorage.getItem(`faces-${uid}`) ?? "[]");
+    const mapPhotos: MapPhoto[]   = uid === "guest" ? [] : await fetchMapPhotos(uid);
+    const facePhotos: FacePhoto[] = uid === "guest" ? [] : await fetchFacePhotos(uid);
     const locationSet = new Set(
       mapPhotos.map((p) => p.location?.split(",")[0]?.trim()).filter(Boolean)
     );
@@ -486,14 +487,16 @@ export default function HomePage() {
         try {
           const { data: { user } } = await supabase.auth.getUser();
           const uid = user?.id ?? "guest";
+          if (uid === "guest") throw new Error("Not signed in");
           const dataUrl = await createThumbnailDataUrl(file, 1024, 0.90);
           const facePhotoId = crypto.randomUUID();
-          const facePhoto: FacePhoto = {
+          await upsertPhoto(uid, {
             id: facePhotoId,
             fileName: file.name,
             imageUrl: dataUrl,
             faceCount: detectedFaceCount,
-            uploadedAt: new Date().toISOString(),
+            isFacePhoto: true,
+            isMapPhoto: false,
             ...(faceBoxes.length > 0       && { boxes: faceBoxes }),
             ...(faceDescriptors.length > 0 && { descriptors: faceDescriptors }),
             ...(faceConfidences.length > 0 && { confidences: faceConfidences }),
@@ -503,12 +506,7 @@ export default function HomePage() {
             ...(lat !== null               && { lat }),
             ...(lng !== null               && { lng }),
             ...(location !== "No GPS data" && { location }),
-          };
-          const facesKey = `faces-${uid}`;
-          const existing: FacePhoto[] = JSON.parse(localStorage.getItem(facesKey) ?? "[]");
-          // Remove any previous entry with the same filename to avoid duplicates from re-uploading
-          const deduped = existing.filter((p) => p.fileName !== file.name);
-          localStorage.setItem(facesKey, JSON.stringify([facePhoto, ...deduped]));
+          });
           setLastFacePhotoId(facePhotoId);
           setFaceMessage(`${detectedFaceCount} face(s) detected!${topExpr ? ` · ${topExpr}` : ""} Saved to Faces album.`);
         } catch (saveErr) {
@@ -577,8 +575,6 @@ export default function HomePage() {
 
     const { data: { user } } = await supabase.auth.getUser();
     const uid = user?.id ?? "guest";
-    const mapKey   = `map-${uid}`;
-    const facesKey = `faces-${uid}`;
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -637,26 +633,23 @@ export default function HomePage() {
           }
         }
 
-        const mapPhotos: MapPhoto[] = JSON.parse(localStorage.getItem(mapKey) ?? "[]");
-        mapPhotos.unshift({ id: photoId, fileName: file.name, imageUrl, lat, lng, location, captureDate, captureTime, captureTimestamp, uploadedAt: new Date().toISOString(), faceCount });
-        localStorage.setItem(mapKey, JSON.stringify(mapPhotos));
-        if (faceCount > 0) {
-          const allFacePhotos: FacePhoto[] = JSON.parse(localStorage.getItem(facesKey) ?? "[]");
-          const facePhotos = allFacePhotos.filter((p) => p.fileName !== file.name);
-          facePhotos.unshift({
-            id: photoId, fileName: file.name, imageUrl,
-            faceCount, uploadedAt: new Date().toISOString(),
+        if (uid !== "guest") {
+          await upsertPhoto(uid, {
+            id: photoId,
+            fileName: file.name,
+            imageUrl,
+            lat, lng, location,
+            captureDate, captureTime, captureTimestamp,
+            faceCount,
+            isMapPhoto: true,
+            isFacePhoto: faceCount > 0,
             ...(faceBoxes.length > 0       && { boxes: faceBoxes }),
             ...(faceDescriptors.length > 0 && { descriptors: faceDescriptors }),
             ...(faceConfs.length > 0       && { confidences: faceConfs }),
             ...(faceAgesB.length > 0       && { ages: faceAgesB }),
             ...(faceGendersB.length > 0    && { genders: faceGendersB }),
             ...(faceExprsB.length > 0      && { expressions: faceExprsB }),
-            ...(lat !== undefined          && { lat }),
-            ...(lng !== undefined          && { lng }),
-            ...(location                   && { location }),
           });
-          localStorage.setItem(facesKey, JSON.stringify(facePhotos));
         }
         const infoParts: string[] = [];
         if (faceCount > 0) infoParts.push(`${faceCount} face(s)`);
@@ -694,15 +687,8 @@ export default function HomePage() {
     if (!newName.trim() || !photoId) return;
     const { data: { user } } = await supabase.auth.getUser();
     const uid = user?.id ?? "guest";
-    const trimmed = newName.trim();
-
-    const mapPhotos: MapPhoto[] = JSON.parse(localStorage.getItem(`map-${uid}`) ?? "[]");
-    const mi = mapPhotos.findIndex(p => p.id === photoId);
-    if (mi >= 0) { mapPhotos[mi].fileName = trimmed; localStorage.setItem(`map-${uid}`, JSON.stringify(mapPhotos)); }
-
-    const facePhotos: FacePhoto[] = JSON.parse(localStorage.getItem(`faces-${uid}`) ?? "[]");
-    const fi = facePhotos.findIndex(p => p.id === photoId);
-    if (fi >= 0) { facePhotos[fi].fileName = trimmed; localStorage.setItem(`faces-${uid}`, JSON.stringify(facePhotos)); }
+    if (uid === "guest") return;
+    await renamePhoto(uid, photoId, newName.trim());
   }
 
   function clearSelection() {
@@ -729,13 +715,7 @@ export default function HomePage() {
       if (lastFacePhotoId) {
         const { data: { user } } = await supabase.auth.getUser();
         const uid = user?.id ?? "guest";
-        const facesKey = `faces-${uid}`;
-        const photos: FacePhoto[] = JSON.parse(localStorage.getItem(facesKey) ?? "[]");
-        const idx = photos.findIndex((p) => p.id === lastFacePhotoId);
-        if (idx >= 0) {
-          photos[idx].fileName = newName;
-          localStorage.setItem(facesKey, JSON.stringify(photos));
-        }
+        if (uid !== "guest") await renamePhoto(uid, lastFacePhotoId, newName);
       }
     }
     setIsEditingName(false);
@@ -752,49 +732,37 @@ export default function HomePage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const uid = user?.id ?? "guest";
+      if (uid === "guest") throw new Error("Not signed in");
+
+      // Reuse the id of the face-detection row this file already got saved under
+      // (if any), so this becomes one row with both is_map_photo and is_face_photo
+      // set, instead of two rows for the same photo.
+      const photoId = lastFacePhotoId && photoInfo.faceCount > 0 ? lastFacePhotoId : crypto.randomUUID();
       const dataUrl = await createThumbnailDataUrl(selectedFile, 1024, 0.90);
-      const photoId = crypto.randomUUID();
 
       // Upload to Supabase Storage; fall back to base64 if it fails
       let imageUrl = dataUrl;
-      if (uid !== "guest") {
-        try {
-          imageUrl = await uploadToUserPhotos(uid, photoId, dataUrl);
-        } catch (uploadErr) {
-          console.warn("Supabase upload failed, storing locally:", uploadErr);
-        }
+      try {
+        imageUrl = await uploadToUserPhotos(uid, photoId, dataUrl);
+      } catch (uploadErr) {
+        console.warn("Supabase upload failed, storing locally:", uploadErr);
       }
 
-      const photo: MapPhoto = {
+      await upsertPhoto(uid, {
         id: photoId,
         fileName: customFileName.trim() || selectedFile.name,
         imageUrl,
         lat: effectiveLat,
         lng: effectiveLng,
         location: manualCoords?.name ?? photoInfo.location,
-        captureDate: photoInfo.captureDate !== "Not available" ? photoInfo.captureDate : undefined,
-        captureTime: photoInfo.captureTime !== "Not available" ? photoInfo.captureTime : undefined,
-        captureTimestamp: photoInfo.captureTimestamp ?? undefined,
-        uploadedAt: new Date().toISOString(),
+        captureDate: photoInfo.captureDate !== "Not available" ? photoInfo.captureDate : null,
+        captureTime: photoInfo.captureTime !== "Not available" ? photoInfo.captureTime : null,
+        captureTimestamp: photoInfo.captureTimestamp,
         faceCount: photoInfo.faceCount,
-      };
-      const mapKey = `map-${uid}`;
-      const existing: MapPhoto[] = JSON.parse(localStorage.getItem(mapKey) ?? "[]");
-      localStorage.setItem(mapKey, JSON.stringify([photo, ...existing]));
+        isMapPhoto: true,
+      });
 
-      // Sync face entry: update ID and imageUrl to match map photo
-      if (lastFacePhotoId && photoInfo.faceCount > 0) {
-        const facesKey = `faces-${uid}`;
-        const allFaces: FacePhoto[] = JSON.parse(localStorage.getItem(facesKey) ?? "[]");
-        const fIdx = allFaces.findIndex((p) => p.id === lastFacePhotoId);
-        if (fIdx >= 0) {
-          allFaces[fIdx].id = photoId;
-          allFaces[fIdx].imageUrl = imageUrl;
-          localStorage.setItem(facesKey, JSON.stringify(allFaces));
-          setLastFacePhotoId(photoId);
-        }
-      }
-
+      setLastFacePhotoId(photoId);
       setIsMapSaved(true);
       setSavedMessage("Saved to map and albums!");
       refreshStats();
@@ -1217,6 +1185,14 @@ export default function HomePage() {
                       <p className="text-xs text-white/70">detected</p>
                     </div>
                   </div>
+
+                  {faceMessage && (
+                    <p className={`text-xs font-medium px-1 ${
+                      faceMessage.includes("Save failed") ? "text-red-500" : "text-emerald-600"
+                    }`}>
+                      {faceMessage}
+                    </p>
+                  )}
 
                   {/* Info grid — all sky blue icons */}
                   <div className="grid grid-cols-2 gap-2">

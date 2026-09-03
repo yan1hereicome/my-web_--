@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Map, Image, Users, Star, LogOut, UserCircle, BarChart2, FolderOpen } from "lucide-react";
+import { Home, Map, Image, Users, Star, LogOut, UserCircle, BarChart2, FolderOpen, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 const navItems = [
   { href: "/",        icon: Home,       label: "Home"    },
   { href: "/map",     icon: Map,        label: "Map"     },
   { href: "/albums",  icon: Image,      label: "Albums"  },
+  { href: "/feed",    icon: Sparkles,   label: "Feed"    },
   { href: "/collab",  icon: FolderOpen, label: "Collab"  },
   { href: "/faces",   icon: Users,      label: "Faces"   },
   { href: "/saved",   icon: Star,       label: "Saved"   },
@@ -27,14 +28,16 @@ export default function BottomNav() {
 
   return (
     <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[min(820px,calc(100%-24px))] z-50">
-      <div className="bg-white/95 backdrop-blur-xl border border-slate-200 rounded-full px-3 py-2 shadow-xl flex items-center gap-1">
+      {/* More items than fit on a phone-width screen — scroll horizontally rather than
+          squeezing every item down to illegibility (fixed-width items + flex-shrink-0). */}
+      <div className="no-scrollbar bg-white/95 backdrop-blur-xl border border-slate-200 rounded-full px-3 py-2 shadow-xl flex items-center gap-1 overflow-x-auto">
         {navItems.map(({ href, icon: Icon, label }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (
             <Link
               key={href}
               href={href}
-              className={`flex-1 flex flex-col items-center gap-1 py-2 px-1 rounded-full transition-all duration-150 ${
+              className={`flex-shrink-0 w-16 flex flex-col items-center gap-1 py-2 px-1 rounded-full transition-all duration-150 ${
                 active
                   ? "bg-blue-50 text-blue-600"
                   : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"

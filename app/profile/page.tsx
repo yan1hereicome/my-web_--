@@ -1,15 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   User, Mail, CalendarDays, Pencil, Check, X,
-  KeyRound, Eye, EyeOff, AlertCircle, CheckCircle2, LogOut,
+  KeyRound, Eye, EyeOff, AlertCircle, CheckCircle2, LogOut, Camera, Loader2,
 } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabase";
 
-type Profile = { id: string; name: string; created_at: string };
+type Profile = { id: string; name: string; created_at: string; avatar_url?: string | null };
+
+// Downscales to a manageable square-ish size before upload — an avatar never
+// needs to be full photo resolution, and this keeps Storage usage/bandwidth down.
+async function resizeAvatarBlob(file: File, maxSize = 512, quality = 0.9): Promise<Blob> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return file;
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  const resized = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+  return resized ?? file;
+}
 
 function initials(name: string) {
   return name.split(" ").map((w) => w[0]?.toUpperCase() ?? "").slice(0, 2).join("");
@@ -40,6 +55,11 @@ export default function ProfilePage() {
   const [showConfirm,   setShowConfirm]   = useState(false);
   const [pwMsg,         setPwMsg]         = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [pwLoading,     setPwLoading]     = useState(false);
+
+  // Avatar upload
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarMsg,       setAvatarMsg]       = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function load() {
@@ -119,6 +139,36 @@ export default function ProfilePage() {
     router.push("/login");
   }
 
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file || !profile) return;
+
+    setAvatarUploading(true);
+    setAvatarMsg(null);
+    try {
+      const blob = await resizeAvatarBlob(file);
+      // A fresh filename per upload (rather than a fixed "avatar.jpg" with upsert)
+      // only ever needs the same insert-your-own-path Storage permission that photo
+      // uploads already use — no separate overwrite/update policy to depend on.
+      const path = `${profile.id}/avatar-${Date.now()}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from("user-photos")
+        .upload(path, blob, { contentType: "image/jpeg" });
+      if (uploadError) throw new Error(uploadError.message);
+
+      const publicUrl = supabase.storage.from("user-photos").getPublicUrl(path).data.publicUrl;
+      const { error: updateError } = await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", profile.id);
+      if (updateError) throw new Error(updateError.message);
+
+      setProfile((p) => p ? { ...p, avatar_url: publicUrl } : p);
+    } catch (err) {
+      setAvatarMsg(err instanceof Error ? err.message : "Failed to upload photo.");
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
+
   if (!profile) return null;
 
   const displayName = profile.name || email;
@@ -131,12 +181,34 @@ export default function ProfilePage() {
 
         {/* Avatar card */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex items-center gap-5">
-          <div className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-200">
-            <span className="text-2xl font-extrabold text-white">{initials(displayName)}</span>
+          <div className="relative flex-shrink-0">
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={avatarUploading}
+              className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center shadow-md shadow-blue-200 overflow-hidden disabled:opacity-70"
+            >
+              {avatarUploading ? (
+                <Loader2 size={20} className="text-white animate-spin" />
+              ) : profile.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={profile.avatar_url} alt={displayName} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-2xl font-extrabold text-white">{initials(displayName)}</span>
+              )}
+            </button>
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={avatarUploading}
+              className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-500 hover:text-blue-600 transition-colors"
+            >
+              <Camera size={12} />
+            </button>
+            <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
           </div>
           <div className="min-w-0">
             <p className="text-lg font-bold text-slate-900 truncate">{displayName}</p>
             <p className="text-sm text-slate-500 truncate">{email}</p>
+            {avatarMsg && <p className="text-xs text-red-500 font-medium mt-1">{avatarMsg}</p>}
           </div>
         </div>
 
